@@ -12,7 +12,7 @@ Asistente de voz en español con interfaz Compose, comandos para el dispositivo,
 
 ## Compilar y probar
 
-Requisitos: JDK 17, Gradle 9.3.1 y Android SDK con la plataforma 36.1 y build-tools 36.0.0. Configura `ANDROID_HOME` o `local.properties` para localizar el SDK. Este repositorio no incluye los ejecutables ni el JAR de Gradle Wrapper.
+Requisitos: JDK 21 (necesario para las pruebas Robolectric con Android 16), Gradle 9.3.1 y Android SDK con la plataforma 36.1 y build-tools 36.0.0. Configura `ANDROID_HOME` o `local.properties` para localizar el SDK. Este repositorio no incluye los ejecutables ni el JAR de Gradle Wrapper.
 
 La configuración de depuración espera `debug.keystore` en la raíz; para generar una clave **solo para desarrollo**:
 
