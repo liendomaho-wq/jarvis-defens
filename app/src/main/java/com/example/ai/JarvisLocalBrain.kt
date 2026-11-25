@@ -117,6 +117,13 @@ class JarvisLocalBrain(context: Context) {
         // Exact math, unit conversions, date/time, and greetings
         LocalKnowledgeAndReasoning.tryExactLocalQuery(clause, telemetry)?.let { return it }
 
+        // Las preguntas y peticiones explicativas no deben convertirse en acciones por una
+        // clasificación neuronal errónea; pueden responderse con Ollama si está configurado.
+        if (clause.trimStart().startsWith("¿") || clause.contains("?") ||
+            listOf("que ", "como ", "por que ", "quien ", "cual ", "explica", "cuentame").any { norm.startsWith(it) }) {
+            return LocalKnowledgeAndReasoning.answerLocally(clause, telemetry)
+        }
+
         // Neural Network Inference
         val prediction = neuralNetwork.predict(clause)
         if (prediction.confidence >= 0.42f && prediction.intent != JarvisIntentType.CONVERSATION) {

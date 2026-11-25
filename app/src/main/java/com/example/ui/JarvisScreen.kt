@@ -528,7 +528,7 @@ private fun OllamaSettingsDialog(endpoint: String, model: String, onSave: (Strin
         title = { Text("Conectar Ollama", color = JarvisCyanGlow) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.verticalScroll(rememberScrollState())) {
-                Text("Configura un servidor Ollama accesible desde este teléfono. Las preguntas conversacionales se enviarán a ese servidor. Ollama no navega Internet automáticamente.", style = MaterialTheme.typography.bodySmall)
+                Text("Configura un servidor Ollama accesible desde este teléfono. Las preguntas conversacionales se enviarán a ese servidor. Para consultar Wikipedia di «investiga en internet» seguido del tema; Ollama no navega por sí solo.", style = MaterialTheme.typography.bodySmall)
                 OutlinedTextField(value = address, onValueChange = { address = it; confirmed = false }, label = { Text("URL del servidor") }, placeholder = { Text("http://IP_DEL_SERVIDOR:11434") }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(value = modelName, onValueChange = { modelName = it }, label = { Text("Modelo instalado") }, placeholder = { Text("llama3.2") }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 Text("HTTP no cifra tus preguntas. Úsalo solo en una red de confianza; para acceso remoto usa HTTPS protegido. No incluyas claves en la URL. Deja ambos campos vacíos para desconectar.", style = MaterialTheme.typography.bodySmall, color = JarvisAmber)
