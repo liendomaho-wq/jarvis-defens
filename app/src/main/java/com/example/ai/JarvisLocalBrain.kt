@@ -111,18 +111,19 @@ class JarvisLocalBrain(context: Context) {
             )
         }
 
-        // Exact deterministic command parser
-        LocalSystemCommandParser.tryParseSystemCommand(clause, telemetry)?.let { return it }
+        // Las preguntas no deben disparar acciones por contener palabras como "linterna".
+        // Las consultas de estado y clima son de solo lectura y sí se pueden responder.
+        val isQuestion = clause.trimStart().startsWith("¿") || clause.contains("?") ||
+            listOf("que ", "como ", "por que ", "quien ", "cual ", "explica", "cuentame").any { norm.startsWith(it) }
+        val parsed = LocalSystemCommandParser.tryParseSystemCommand(clause, telemetry)
+        if (isQuestion && parsed?.intent !in listOf(JarvisIntentType.QUERY_DEVICE_STATUS, JarvisIntentType.WEATHER_REPORT)) {
+            return LocalKnowledgeAndReasoning.tryExactLocalQuery(clause, telemetry)
+                ?: LocalKnowledgeAndReasoning.answerLocally(clause, telemetry)
+        }
+        parsed?.let { return it }
 
         // Exact math, unit conversions, date/time, and greetings
         LocalKnowledgeAndReasoning.tryExactLocalQuery(clause, telemetry)?.let { return it }
-
-        // Las preguntas y peticiones explicativas no deben convertirse en acciones por una
-        // clasificación neuronal errónea; pueden responderse con Ollama si está configurado.
-        if (clause.trimStart().startsWith("¿") || clause.contains("?") ||
-            listOf("que ", "como ", "por que ", "quien ", "cual ", "explica", "cuentame").any { norm.startsWith(it) }) {
-            return LocalKnowledgeAndReasoning.answerLocally(clause, telemetry)
-        }
 
         // Neural Network Inference
         val prediction = neuralNetwork.predict(clause)

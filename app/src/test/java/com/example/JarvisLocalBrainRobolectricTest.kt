@@ -53,6 +53,13 @@ class JarvisLocalBrainRobolectricTest {
     }
 
     @Test
+    fun `question about flashlight does not toggle it`() {
+        val result = brain.interpretCommand("¿Qué es la linterna?", baseTelemetry)
+        assertEquals(JarvisIntentType.CONVERSATION, result.intent)
+        assertTrue(result.steps.isEmpty())
+    }
+
+    @Test
     fun `plans four actions in order and collapses camera open and capture`() {
         val plan = brain.interpretCommand("Enciende la linterna, pon el volumen al 70%, baja el brillo al 35% y toma una foto", baseTelemetry)
         assertEquals(4, plan.steps.size)
