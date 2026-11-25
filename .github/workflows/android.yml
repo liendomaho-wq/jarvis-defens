@@ -41,7 +41,10 @@ jobs:
       - name: Ejecutar pruebas y compilar APK de depuración
         run: |
           set -o pipefail
-          gradle :app:testDebugUnitTest :app:assembleDebug --no-daemon --stacktrace 2>&1 | tee gradle.log || { tail -100 gradle.log | while IFS= read -r line; do echo "::error::$line"; done; exit 1; }
+          gradle :app:testDebugUnitTest :app:assembleDebug --no-daemon 2>&1 | tee gradle.log || {
+            grep -E -A 8 'FAILURE:|^e: |^> Task .*FAILED|Execution failed for task' gradle.log | head -30 | while IFS= read -r line; do echo "::error::$line"; done
+            exit 1
+          }
       - name: Publicar APK
         uses: actions/upload-artifact@v4
         with:
