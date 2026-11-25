@@ -28,11 +28,14 @@ import android.provider.Settings
 import android.util.Log
 import android.view.KeyEvent
 import android.view.Window
+import com.example.camera.JarvisCameraActivity
 import com.example.model.CommandExecutionResult
 import com.example.model.DeviceTelemetry
 import com.example.model.JarvisAiDecision
 import com.example.model.JarvisIntentType
 import com.example.model.PermissionActionType
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -188,20 +191,35 @@ class SystemControlManager(private val context: Context) {
         )
     }
 
-    fun executeDecisionPlan(
+    suspend fun executeDecisionPlan(
         decision: JarvisAiDecision,
-        window: Window?
+        window: Window?,
+        allowPhoto: Boolean = true
     ): CommandExecutionResult {
         if (decision.steps.isNotEmpty()) {
             val badges = mutableListOf<String>()
             val details = mutableListOf<String>()
-            var anySuccess = false
+            var allSucceeded = true
             var firstPermissionAction: PermissionActionType? = null
+            var externalOpened = false
 
             for (step in decision.steps) {
-                val res = executeSingleDecision(step, window)
-                if (res.success) anySuccess = true
+                val opensExternalScreen = step.intent in setOf(
+                    JarvisIntentType.OPEN_APP_ACTION, JarvisIntentType.OPEN_APP_BY_NAME,
+                    JarvisIntentType.OPEN_SYSTEM_PANEL, JarvisIntentType.OPEN_ASSISTANT_SETTINGS,
+                    JarvisIntentType.SEND_MESSAGE, JarvisIntentType.MAKE_CALL, JarvisIntentType.SEND_EMAIL,
+                    JarvisIntentType.WEB_BROWSE, JarvisIntentType.NAVIGATE_MAPS,
+                    JarvisIntentType.SET_ALARM, JarvisIntentType.SET_TIMER
+                )
+                val res = if (opensExternalScreen && externalOpened) {
+                    CommandExecutionResult(false, "PANTALLA PENDIENTE", "Otra aplicación ya se abrió. Solicita este paso por separado al volver a Jarvis.")
+                } else if (step.intent == JarvisIntentType.CONVERSATION) {
+                    CommandExecutionResult(false, "PASO NO RECONOCIDO", "No entendí este paso: ${step.spokenResponse}")
+                } else executeSingleDecision(step, window, allowPhoto)
+                if (res.success && opensExternalScreen) externalOpened = true
+                if (!res.success) allSucceeded = false
                 badges += res.actionBadge
+                details += "${step.actionSummary}: ${if (res.success) "iniciado/realizado" else "no realizado"}"
                 if (!res.detailText.isNullOrBlank()) {
                     details += res.detailText
                 }
@@ -211,7 +229,7 @@ class SystemControlManager(private val context: Context) {
             }
 
             return CommandExecutionResult(
-                success = anySuccess,
+                success = allSucceeded,
                 actionBadge = decision.actionSummary.ifBlank { badges.joinToString(" • ").take(32) },
                 detailText = details.distinct().joinToString(" | ").ifBlank {
                     badges.joinToString(" → ")
@@ -219,17 +237,18 @@ class SystemControlManager(private val context: Context) {
                 permissionActionType = firstPermissionAction
             )
         }
-        return executeSingleDecision(decision, window)
+        return executeSingleDecision(decision, window, allowPhoto)
     }
 
-    fun executeAiDecision(
+    suspend fun executeAiDecision(
         decision: JarvisAiDecision,
         window: Window?
     ): CommandExecutionResult = executeDecisionPlan(decision, window)
 
-    private fun executeSingleDecision(
+    private suspend fun executeSingleDecision(
         decision: JarvisAiDecision,
-        window: Window?
+        window: Window?,
+        allowPhoto: Boolean
     ): CommandExecutionResult {
         return when (decision.intent) {
             JarvisIntentType.TOGGLE_FLASHLIGHT -> {
@@ -271,7 +290,9 @@ class SystemControlManager(private val context: Context) {
                 openSystemPanel(decision.panel ?: "settings")
             }
             JarvisIntentType.OPEN_APP_ACTION -> {
-                openAppAction(decision.appAction ?: "settings", decision.query.orEmpty())
+                if (decision.appAction == "take_photo" && !allowPhoto) {
+                    CommandExecutionResult(false, "FOTO BLOQUEADA", "Por privacidad, solicita la foto directamente con Jarvis abierto.")
+                } else openAppAction(decision.appAction ?: "settings", decision.query.orEmpty())
             }
             JarvisIntentType.QUERY_DEVICE_STATUS -> {
                 val t = getTelemetry()
@@ -326,14 +347,21 @@ class SystemControlManager(private val context: Context) {
                 launchIntent(intent, "ASISTENTE OS", "AJUSTES ASISTENTE")
             }
             JarvisIntentType.WEATHER_REPORT -> {
-                val city = decision.query?.ifBlank { "Madrid" } ?: "Madrid"
-                val forecast = WeatherRepository.fetchWeather(city)
-                val responseText = "A su entera disposición, señor. En ${forecast.city} se espera ${forecast.condition.lowercase()}, con una temperatura máxima de ${forecast.tempMax.toInt()} grados y mínima de ${forecast.tempMin.toInt()} grados."
-                CommandExecutionResult(
-                    success = true,
-                    actionBadge = "CLIMA // ${forecast.city.uppercase()}",
-                    detailText = responseText
-                )
+                when (val result = withContext(Dispatchers.IO) {
+                    WeatherRepository.fetchWeather(decision.query.orEmpty())
+                }) {
+                    is WeatherRepository.Result.Success -> {
+                        val forecast = result.forecast
+                        CommandExecutionResult(
+                            success = true,
+                            actionBadge = "CLIMA // ${forecast.city.uppercase()}",
+                            detailText = "En ${forecast.city} se espera ${forecast.condition.lowercase()}, con una máxima de ${forecast.tempMax.toInt()} grados y una mínima de ${forecast.tempMin.toInt()} grados."
+                        )
+                    }
+                    is WeatherRepository.Result.Error -> CommandExecutionResult(
+                        success = false, actionBadge = "CLIMA // NO DISPONIBLE", detailText = result.message
+                    )
+                }
             }
             JarvisIntentType.RUN_ROUTINE,
             JarvisIntentType.CREATE_AUTOMATION,
@@ -360,20 +388,7 @@ class SystemControlManager(private val context: Context) {
         val cleanPlatform = platform.lowercase().trim()
         val trimmedRecipient = recipient.trim()
 
-        // Try automatic accessibility typing and sending if service is enabled
-        val accService = JarvisAccessibilityService.instance
-        if (accService != null && JarvisAccessibilityService.isServiceEnabled && messageBody.isNotBlank()) {
-            openAppByName(cleanPlatform)
-            val sent = accService.autoSendSocialMessage(trimmedRecipient, messageBody)
-            if (sent) {
-                return CommandExecutionResult(
-                    success = true,
-                    actionBadge = "ACCESIBILIDAD // ENVIADO",
-                    detailText = "Mensaje escrito y enviado automáticamente por ${cleanPlatform.uppercase()} vía Accesibilidad."
-                )
-            }
-        }
-
+        // Solo se prepara el mensaje en otra aplicación; el usuario revisa y envía.
         val encodedText = URLEncoder.encode(messageBody, "UTF-8")
 
         // Resolve contact phone if recipient name is provided
@@ -952,6 +967,11 @@ class SystemControlManager(private val context: Context) {
 
     fun openAppAction(appAction: String, query: String): CommandExecutionResult {
         return when (appAction.lowercase()) {
+            "take_photo" -> {
+                val intent = Intent(context, JarvisCameraActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                val result = launchIntent(intent, "CÁMARA // CAPTURA", "CÁMARA NO DISPONIBLE")
+                if (result.success) result.copy(detailText = "Cámara iniciada; la captura y el guardado se confirmarán en la pantalla de cámara.") else result
+            }
             "camera", "camara", "cámara" -> {
                 val intent = Intent(MediaStore.INTENT_ACTION_STILL_IMAGE_CAMERA).apply {
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)

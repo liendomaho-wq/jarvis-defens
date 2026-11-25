@@ -22,12 +22,20 @@ object LocalSystemCommandParser {
         // 1. WhatsApp / Telegram / SMS messaging
         parseMessagingCommand(rawText, normalized)?.let { return it }
 
-        // 2. Camera & Photo Capture
-        if (containsAny(normalized, "toma una foto", "toma foto", "saca una foto", "haz una foto", "captura la foto", "abre la camara", "abre camara", "camara")) {
+        // Captura explícita usa la cámara propia; abrir cámara no implica tomar foto.
+        if (containsAny(normalized, "toma una foto", "toma foto", "saca una foto", "saca foto", "haz una foto", "tome una foto", "captura la foto", "captura una foto", "tomar una foto")) {
             return JarvisAiDecision(
                 intent = JarvisIntentType.OPEN_APP_ACTION,
-                spokenResponse = "Abriendo cámara para capturar la foto.",
-                actionSummary = "CÁMARA // FOTO",
+                spokenResponse = "Abriré la cámara para tomar una foto.",
+                actionSummary = "CÁMARA // CAPTURA",
+                appAction = "take_photo"
+            )
+        }
+        if (containsAny(normalized, "abre la camara", "abre camara", "abrir la camara")) {
+            return JarvisAiDecision(
+                intent = JarvisIntentType.OPEN_APP_ACTION,
+                spokenResponse = "Abriendo la cámara.",
+                actionSummary = "CÁMARA ABIERTA",
                 appAction = "camera"
             )
         }
@@ -405,7 +413,7 @@ object LocalSystemCommandParser {
                 intent = JarvisIntentType.WEATHER_REPORT,
                 spokenResponse = "Permítame consultar el reporte meteorológico, señor.",
                 actionSummary = "CLIMA // ${if (city.isNotBlank()) city.uppercase() else "HOY"}",
-                query = if (city.isNotBlank()) city else "Madrid"
+                query = city
             )
         }
 

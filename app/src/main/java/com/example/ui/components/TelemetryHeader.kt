@@ -97,7 +97,7 @@ fun TelemetryHeader(
                     }
                 }
                 Text(
-                    text = if (isHotwordActive) "HOTWORD ACTIVO // JARVIS ESTAS DESPIERTO?" else "IA NEURAL LOCAL // OFFLINE",
+                    text = if (isHotwordActive) "HOTWORD ACTIVO // JARVIS ESTAS DESPIERTO?" else "IA NEURAL LOCAL",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f)
                 )

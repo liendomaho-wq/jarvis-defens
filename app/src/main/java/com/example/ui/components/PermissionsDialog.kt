@@ -85,7 +85,7 @@ fun PermissionsDialog(
                 PermissionStatusRow(
                     icon = Icons.Rounded.GraphicEq,
                     title = "Acceso de Voz",
-                    subtitle = "Necesario para dictar instrucciones a Jarvis.",
+                    subtitle = "Para dictado y activación por voz. El proveedor de voz puede usar Internet; la escucha consume batería.",
                     granted = hasMicPermission,
                     actionLabel = "Activar",
                     onGrantClick = onRequestMicPermission

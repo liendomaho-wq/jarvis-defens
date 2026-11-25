@@ -97,6 +97,13 @@ class LocalSystemCommandParserTest {
     }
 
     @Test
+    fun `distinguishes opening camera from taking a photo`() {
+        assertEquals("camera", LocalSystemCommandParser.tryParseSystemCommand("Abre la cámara", defaultTelemetry)?.appAction)
+        assertEquals("take_photo", LocalSystemCommandParser.tryParseSystemCommand("Toma una foto", defaultTelemetry)?.appAction)
+        assertEquals("take_photo", LocalSystemCommandParser.tryParseSystemCommand("Saca una foto", defaultTelemetry)?.appAction)
+    }
+
+    @Test
     fun `leaves open-ended questions for cloud AI`() {
         val chat = LocalSystemCommandParser.tryParseSystemCommand("¿Por qué el cielo es azul?", defaultTelemetry)
         assertNull(chat)
