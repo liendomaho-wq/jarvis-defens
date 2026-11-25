@@ -149,7 +149,8 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application) 
         _uiState.update {
             it.copy(
                 telemetry = latest,
-                isDefaultAssistant = isDefault
+                isDefaultAssistant = isDefault,
+                isHotwordActive = JarvisHotwordService.isRunning
             )
         }
     }
@@ -160,7 +161,8 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application) 
         _uiState.update {
             it.copy(
                 telemetry = latest,
-                isDefaultAssistant = isDefault
+                isDefaultAssistant = isDefault,
+                isHotwordActive = JarvisHotwordService.isRunning
             )
         }
 
@@ -289,7 +291,7 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application) 
         val ttsAllowed = _uiState.value.ttsEnabled &&
             allSteps.none { it.intent == JarvisIntentType.SET_TTS_VOICE && it.enabled == false }
         val startedSpeaking = if (ttsAllowed) {
-            voiceController.speak(decision.spokenResponse)
+            voiceController.speak(if (decision.intent == JarvisIntentType.WEATHER_REPORT && !execResult.detailText.isNullOrBlank()) execResult.detailText else decision.spokenResponse)
         } else {
             false
         }
@@ -376,12 +378,17 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application) 
             app.stopService(intent)
             _uiState.update { it.copy(isHotwordActive = false) }
         } else {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                app.startForegroundService(intent)
-            } else {
-                app.startService(intent)
+            if (ContextCompat.checkSelfPermission(app, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+                reportMicPermissionDenied()
+                return
             }
-            _uiState.update { it.copy(isHotwordActive = true) }
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) app.startForegroundService(intent)
+                else app.startService(intent)
+                _uiState.update { it.copy(isHotwordActive = true) }
+            } catch (e: Exception) {
+                _uiState.update { it.copy(coreState = JarvisCoreState.ERROR, activeErrorMessage = "No se pudo activar la escucha. Revisa los permisos y vuelve a intentarlo con la app abierta.") }
+            }
         }
     }
 

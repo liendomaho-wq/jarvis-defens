@@ -405,7 +405,7 @@ object LocalSystemCommandParser {
                 intent = JarvisIntentType.WEATHER_REPORT,
                 spokenResponse = "Permítame consultar el reporte meteorológico, señor.",
                 actionSummary = "CLIMA // ${if (city.isNotBlank()) city.uppercase() else "HOY"}",
-                query = if (city.isNotBlank()) city else "Madrid"
+                query = city
             )
         }
 

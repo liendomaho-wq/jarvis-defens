@@ -33,6 +33,8 @@ import com.example.model.DeviceTelemetry
 import com.example.model.JarvisAiDecision
 import com.example.model.JarvisIntentType
 import com.example.model.PermissionActionType
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -188,7 +190,7 @@ class SystemControlManager(private val context: Context) {
         )
     }
 
-    fun executeDecisionPlan(
+    suspend fun executeDecisionPlan(
         decision: JarvisAiDecision,
         window: Window?
     ): CommandExecutionResult {
@@ -222,12 +224,12 @@ class SystemControlManager(private val context: Context) {
         return executeSingleDecision(decision, window)
     }
 
-    fun executeAiDecision(
+    suspend fun executeAiDecision(
         decision: JarvisAiDecision,
         window: Window?
     ): CommandExecutionResult = executeDecisionPlan(decision, window)
 
-    private fun executeSingleDecision(
+    private suspend fun executeSingleDecision(
         decision: JarvisAiDecision,
         window: Window?
     ): CommandExecutionResult {
@@ -326,14 +328,21 @@ class SystemControlManager(private val context: Context) {
                 launchIntent(intent, "ASISTENTE OS", "AJUSTES ASISTENTE")
             }
             JarvisIntentType.WEATHER_REPORT -> {
-                val city = decision.query?.ifBlank { "Madrid" } ?: "Madrid"
-                val forecast = WeatherRepository.fetchWeather(city)
-                val responseText = "A su entera disposición, señor. En ${forecast.city} se espera ${forecast.condition.lowercase()}, con una temperatura máxima de ${forecast.tempMax.toInt()} grados y mínima de ${forecast.tempMin.toInt()} grados."
-                CommandExecutionResult(
-                    success = true,
-                    actionBadge = "CLIMA // ${forecast.city.uppercase()}",
-                    detailText = responseText
-                )
+                when (val result = withContext(Dispatchers.IO) {
+                    WeatherRepository.fetchWeather(decision.query.orEmpty())
+                }) {
+                    is WeatherRepository.Result.Success -> {
+                        val forecast = result.forecast
+                        CommandExecutionResult(
+                            success = true,
+                            actionBadge = "CLIMA // ${forecast.city.uppercase()}",
+                            detailText = "En ${forecast.city} se espera ${forecast.condition.lowercase()}, con una máxima de ${forecast.tempMax.toInt()} grados y una mínima de ${forecast.tempMin.toInt()} grados."
+                        )
+                    }
+                    is WeatherRepository.Result.Error -> CommandExecutionResult(
+                        success = false, actionBadge = "CLIMA // NO DISPONIBLE", detailText = result.message
+                    )
+                }
             }
             JarvisIntentType.RUN_ROUTINE,
             JarvisIntentType.CREATE_AUTOMATION,
@@ -360,20 +369,7 @@ class SystemControlManager(private val context: Context) {
         val cleanPlatform = platform.lowercase().trim()
         val trimmedRecipient = recipient.trim()
 
-        // Try automatic accessibility typing and sending if service is enabled
-        val accService = JarvisAccessibilityService.instance
-        if (accService != null && JarvisAccessibilityService.isServiceEnabled && messageBody.isNotBlank()) {
-            openAppByName(cleanPlatform)
-            val sent = accService.autoSendSocialMessage(trimmedRecipient, messageBody)
-            if (sent) {
-                return CommandExecutionResult(
-                    success = true,
-                    actionBadge = "ACCESIBILIDAD // ENVIADO",
-                    detailText = "Mensaje escrito y enviado automáticamente por ${cleanPlatform.uppercase()} vía Accesibilidad."
-                )
-            }
-        }
-
+        // Solo se prepara el mensaje en otra aplicación; el usuario revisa y envía.
         val encodedText = URLEncoder.encode(messageBody, "UTF-8")
 
         // Resolve contact phone if recipient name is provided

@@ -17,6 +17,7 @@ import android.speech.SpeechRecognizer
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.example.MainActivity
+import com.example.assistant.JarvisVoiceInteractionSession
 import java.text.Normalizer
 import java.util.Locale
 
@@ -35,6 +36,7 @@ class JarvisHotwordService : Service() {
     private var speechRecognizer: SpeechRecognizer? = null
     private val handler = Handler(Looper.getMainLooper())
     private var isListeningSession = false
+    private var activated = false
 
     private val restartListeningRunnable = object : Runnable {
         override fun run() {
@@ -97,15 +99,18 @@ class JarvisHotwordService : Service() {
         } catch (_: Exception) {}
 
         try {
-            speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this).apply {
+            speechRecognizer = (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+                SpeechRecognizer.isOnDeviceRecognitionAvailable(this)) {
+                SpeechRecognizer.createOnDeviceSpeechRecognizer(this)
+            } else {
+                SpeechRecognizer.createSpeechRecognizer(this)
+            }).apply {
                 setRecognitionListener(object : RecognitionListener {
                     override fun onReadyForSpeech(params: Bundle?) {}
                     override fun onBeginningOfSpeech() {}
                     override fun onRmsChanged(rmsdB: Float) {}
                     override fun onBufferReceived(buffer: ByteArray?) {}
-                    override fun onEndOfSpeech() {
-                        isListeningSession = false
-                    }
+                    override fun onEndOfSpeech() {}
                     override fun onError(error: Int) {
                         isListeningSession = false
                     }
@@ -165,7 +170,14 @@ class JarvisHotwordService : Service() {
     }
 
     private fun triggerHotwordActivation(matchedText: String) {
-        Log.i("JarvisHotwordService", "Hotword detected: $matchedText")
+        if (activated) return
+        activated = true
+        // Libera el micrófono antes de iniciar el dictado y evita activaciones duplicadas.
+        handler.removeCallbacks(restartListeningRunnable)
+        speechRecognizer?.cancel()
+        speechRecognizer?.destroy()
+        speechRecognizer = null
+        isListeningSession = false
         val broadcastIntent = Intent(ACTION_HOTWORD_DETECTED).apply {
             putExtra(EXTRA_HOTWORD_TEXT, matchedText)
             setPackage(packageName)
@@ -174,8 +186,14 @@ class JarvisHotwordService : Service() {
 
         val mainActivityIntent = Intent(this, MainActivity::class.java).apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            putExtra(JarvisVoiceInteractionSession.EXTRA_ASSIST_AUTO_LISTEN, true)
         }
-        startActivity(mainActivityIntent)
+        try {
+            startActivity(mainActivityIntent)
+        } catch (e: Exception) {
+            Log.w("JarvisHotwordService", "Android impidió abrir la actividad desde segundo plano", e)
+        }
+        stopSelf()
     }
 
     private fun normalize(text: String): String {

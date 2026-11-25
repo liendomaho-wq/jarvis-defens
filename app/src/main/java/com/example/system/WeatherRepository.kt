@@ -2,94 +2,73 @@ package com.example.system
 
 import android.util.Log
 import org.json.JSONObject
-import java.io.BufferedReader
-import java.io.InputStreamReader
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
 
+/** Datos reales de Open-Meteo; nunca sustituye errores por un pronóstico inventado. */
 object WeatherRepository {
-    private const val TAG = "WeatherRepository"
-
     data class WeatherForecast(
         val city: String,
         val tempMax: Double,
         val tempMin: Double,
-        val condition: String,
-        val rainChance: String
+        val condition: String
     )
 
-    fun fetchWeather(cityName: String): WeatherForecast {
-        try {
-            val encodedCity = URLEncoder.encode(cityName.ifBlank { "Madrid" }, "UTF-8")
-            val geoUrl = URL("https://geocoding-api.open-meteo.com/v1/search?name=$encodedCity&count=1&language=es&format=json")
-            val geoConn = geoUrl.openConnection() as HttpURLConnection
-            geoConn.connectTimeout = 5000
-            geoConn.readTimeout = 5000
-
-            var lat = 40.4168
-            var lon = -3.7038
-            var resolvedName = cityName.ifBlank { "Madrid" }
-
-            if (geoConn.responseCode == 200) {
-                val reader = BufferedReader(InputStreamReader(geoConn.inputStream))
-                val jsonStr = reader.readText()
-                reader.close()
-                val root = JSONObject(jsonStr)
-                val results = root.optJSONArray("results")
-                if (results != null && results.length() > 0) {
-                    val loc = results.getJSONObject(0)
-                    lat = loc.optDouble("latitude", 40.4168)
-                    lon = loc.optDouble("longitude", -3.7038)
-                    resolvedName = loc.optString("name", resolvedName)
-                }
-            }
-            geoConn.disconnect()
-
-            val weatherUrl = URL("https://api.open-meteo.com/v1/forecast?latitude=$lat&longitude=$lon&daily=temperature_2m_max,temperature_2m_min,weathercode&timezone=auto")
-            val weatherConn = weatherUrl.openConnection() as HttpURLConnection
-            weatherConn.connectTimeout = 5000
-            weatherConn.readTimeout = 5000
-
-            if (weatherConn.responseCode == 200) {
-                val reader = BufferedReader(InputStreamReader(weatherConn.inputStream))
-                val jsonStr = reader.readText()
-                reader.close()
-
-                val root = JSONObject(jsonStr)
-                val daily = root.optJSONObject("daily")
-                if (daily != null) {
-                    val maxArr = daily.optJSONArray("temperature_2m_max")
-                    val minArr = daily.optJSONArray("temperature_2m_min")
-                    val codeArr = daily.optJSONArray("weathercode")
-
-                    val max = maxArr?.optDouble(0, 22.0) ?: 22.0
-                    val min = minArr?.optDouble(0, 14.0) ?: 14.0
-                    val wcode = codeArr?.optInt(0, 0) ?: 0
-
-                    val condition = getWeatherDescription(wcode)
-                    weatherConn.disconnect()
-                    return WeatherForecast(resolvedName, max, min, condition, "Baja")
-                }
-            }
-            weatherConn.disconnect()
-        } catch (e: Exception) {
-            Log.e(TAG, "Error fetching weather data", e)
-        }
-        return WeatherForecast(cityName.ifBlank { "Madrid" }, 22.0, 14.0, "Parcialmente nublado", "N/A")
+    sealed class Result {
+        data class Success(val forecast: WeatherForecast) : Result()
+        data class Error(val message: String) : Result()
     }
 
-    private fun getWeatherDescription(code: Int): String {
-        return when (code) {
-            0 -> "Cielo despejado y soleado"
-            1, 2 -> "Parcialmente nublado"
-            3 -> "Nublado"
-            45, 48 -> "Neblina o bruma"
-            51, 53, 55, 56, 57 -> "Llovizna ligera"
-            61, 63, 65 -> "Lluvia moderada"
-            71, 73, 75, 77 -> "Nevada"
-            95, 96, 99 -> "Tormenta eléctrica"
-            else -> "Condiciones estables"
+    // La función inyectable permite probar respuestas y fallos sin conexión de red.
+    fun fetchWeather(cityName: String, getJson: (String) -> JSONObject = ::readJson): Result {
+        val city = cityName.trim()
+        if (city.isEmpty()) return Result.Error("Indica una ciudad, por ejemplo: clima en Caracas.")
+        return try {
+            val encoded = URLEncoder.encode(city, "UTF-8")
+            val locations = getJson("https://geocoding-api.open-meteo.com/v1/search?name=$encoded&count=1&language=es&format=json")
+                .optJSONArray("results")
+            if (locations == null || locations.length() == 0) {
+                return Result.Error("No encontré la ciudad '$city'. Prueba con otro nombre.")
+            }
+            val location = locations.getJSONObject(0)
+            val lat = location.getDouble("latitude")
+            val lon = location.getDouble("longitude")
+            val name = location.getString("name")
+            val daily = getJson("https://api.open-meteo.com/v1/forecast?latitude=$lat&longitude=$lon&daily=temperature_2m_max,temperature_2m_min,weather_code&timezone=auto")
+                .getJSONObject("daily")
+            val max = daily.getJSONArray("temperature_2m_max").getDouble(0)
+            val min = daily.getJSONArray("temperature_2m_min").getDouble(0)
+            val code = daily.getJSONArray("weather_code").getInt(0)
+            if (!max.isFinite() || !min.isFinite()) error("Temperaturas inválidas")
+            Result.Success(WeatherForecast(name, max, min, getWeatherDescription(code)))
+        } catch (e: Exception) {
+            Log.w("WeatherRepository", "No se pudo consultar el clima", e)
+            Result.Error("No pude obtener el clima de '$city'. Comprueba tu conexión e inténtalo de nuevo.")
         }
+    }
+
+    private fun readJson(url: String): JSONObject {
+        val conn = URL(url).openConnection() as HttpURLConnection
+        try {
+            conn.connectTimeout = 5000
+            conn.readTimeout = 5000
+            check(conn.responseCode == HttpURLConnection.HTTP_OK) { "HTTP ${conn.responseCode}" }
+            return JSONObject(conn.inputStream.bufferedReader().use { it.readText() })
+        } finally {
+            conn.disconnect()
+        }
+    }
+
+    private fun getWeatherDescription(code: Int): String = when (code) {
+        0 -> "Cielo despejado"
+        1, 2 -> "Parcialmente nublado"
+        3 -> "Nublado"
+        45, 48 -> "Neblina o bruma"
+        51, 53, 55, 56, 57 -> "Llovizna"
+        61, 63, 65, 66, 67, 80, 81, 82 -> "Lluvia"
+        71, 73, 75, 77, 85, 86 -> "Nevada"
+        95, 96, 99 -> "Tormenta eléctrica"
+        else -> "Condición meteorológica desconocida"
     }
 }
