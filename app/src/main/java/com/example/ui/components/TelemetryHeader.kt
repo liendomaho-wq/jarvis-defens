@@ -16,6 +16,8 @@ import androidx.compose.foundation.shape.CutCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.VolumeOff
 import androidx.compose.material.icons.automirrored.rounded.VolumeUp
+import androidx.compose.material.icons.rounded.Mic
+import androidx.compose.material.icons.rounded.MicOff
 import androidx.compose.material.icons.rounded.Shield
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -42,7 +44,9 @@ fun TelemetryHeader(
     coreState: JarvisCoreState,
     isOnline: Boolean,
     ttsEnabled: Boolean,
+    isHotwordActive: Boolean,
     onToggleTts: () -> Unit,
+    onToggleHotword: () -> Unit,
     onOpenPermissions: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -93,7 +97,7 @@ fun TelemetryHeader(
                     }
                 }
                 Text(
-                    text = if (isOnline) "IA NEURAL LOCAL // AUTÓNOMO" else "IA NEURAL LOCAL // OFFLINE",
+                    text = if (isHotwordActive) "HOTWORD ACTIVO // JARVIS ESTAS DESPIERTO?" else "IA NEURAL LOCAL // OFFLINE",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f)
                 )
@@ -101,6 +105,18 @@ fun TelemetryHeader(
         }
 
         Row(verticalAlignment = Alignment.CenterVertically) {
+            IconButton(
+                onClick = onToggleHotword,
+                modifier = Modifier
+                    .minimumInteractiveComponentSize()
+                    .testTag("toggle_hotword_button")
+            ) {
+                Icon(
+                    imageVector = if (isHotwordActive) Icons.Rounded.Mic else Icons.Rounded.MicOff,
+                    contentDescription = "Hotword: JARVIS ESTAS DESPIERTO?",
+                    tint = if (isHotwordActive) JarvisEmerald else MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
             IconButton(
                 onClick = onToggleTts,
                 modifier = Modifier

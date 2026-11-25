@@ -325,6 +325,16 @@ class SystemControlManager(private val context: Context) {
                 val intent = com.example.assistant.DefaultAssistantHelper.createDefaultAssistantIntent(context)
                 launchIntent(intent, "ASISTENTE OS", "AJUSTES ASISTENTE")
             }
+            JarvisIntentType.WEATHER_REPORT -> {
+                val city = decision.query?.ifBlank { "Madrid" } ?: "Madrid"
+                val forecast = WeatherRepository.fetchWeather(city)
+                val responseText = "A su entera disposición, señor. En ${forecast.city} se espera ${forecast.condition.lowercase()}, con una temperatura máxima de ${forecast.tempMax.toInt()} grados y mínima de ${forecast.tempMin.toInt()} grados."
+                CommandExecutionResult(
+                    success = true,
+                    actionBadge = "CLIMA // ${forecast.city.uppercase()}",
+                    detailText = responseText
+                )
+            }
             JarvisIntentType.RUN_ROUTINE,
             JarvisIntentType.CREATE_AUTOMATION,
             JarvisIntentType.LIST_AUTOMATIONS,
@@ -349,6 +359,21 @@ class SystemControlManager(private val context: Context) {
     ): CommandExecutionResult {
         val cleanPlatform = platform.lowercase().trim()
         val trimmedRecipient = recipient.trim()
+
+        // Try automatic accessibility typing and sending if service is enabled
+        val accService = JarvisAccessibilityService.instance
+        if (accService != null && JarvisAccessibilityService.isServiceEnabled && messageBody.isNotBlank()) {
+            openAppByName(cleanPlatform)
+            val sent = accService.autoSendSocialMessage(trimmedRecipient, messageBody)
+            if (sent) {
+                return CommandExecutionResult(
+                    success = true,
+                    actionBadge = "ACCESIBILIDAD // ENVIADO",
+                    detailText = "Mensaje escrito y enviado automáticamente por ${cleanPlatform.uppercase()} vía Accesibilidad."
+                )
+            }
+        }
+
         val encodedText = URLEncoder.encode(messageBody, "UTF-8")
 
         // Resolve contact phone if recipient name is provided
@@ -1027,6 +1052,26 @@ class SystemControlManager(private val context: Context) {
             }
         } catch (e: Exception) {
             Log.w(TAG, "Haptic pulse unavailable", e)
+        }
+    }
+
+    fun readScreenContent(): String {
+        val service = JarvisAccessibilityService.instance
+        return if (service != null && JarvisAccessibilityService.isServiceEnabled) {
+            service.readCurrentScreenText()
+        } else {
+            "El Servicio de Accesibilidad de Jarvis no está activo. Actívalo en los Ajustes de Accesibilidad del sistema para permitir que Jarvis lea y controle tu pantalla."
+        }
+    }
+
+    fun openAccessibilitySettings() {
+        val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        try {
+            context.startActivity(intent)
+        } catch (e: Exception) {
+            Log.w(TAG, "Cannot open Accessibility settings", e)
         }
     }
 

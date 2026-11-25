@@ -35,6 +35,7 @@ enum class JarvisIntentType {
     READ_NOTES,
     TEACH_NEURAL_NET,
     OPEN_ASSISTANT_SETTINGS,
+    WEATHER_REPORT,
     CONVERSATION
 }
 

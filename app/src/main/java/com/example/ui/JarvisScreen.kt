@@ -176,7 +176,9 @@ fun JarvisScreen(
                     coreState = uiState.coreState,
                     isOnline = uiState.telemetry.isNetworkConnected,
                     ttsEnabled = uiState.ttsEnabled,
+                    isHotwordActive = uiState.isHotwordActive,
                     onToggleTts = viewModel::toggleTts,
+                    onToggleHotword = viewModel::toggleHotwordService,
                     onOpenPermissions = { viewModel.setPermissionsDialogVisible(true) },
                     modifier = Modifier.align(Alignment.TopCenter)
                 )

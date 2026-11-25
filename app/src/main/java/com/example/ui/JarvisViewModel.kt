@@ -2,7 +2,9 @@ package com.example.ui
 
 import android.Manifest
 import android.app.Application
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.os.Build
 import android.view.Window
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.AndroidViewModel
@@ -17,6 +19,7 @@ import com.example.model.JarvisIntentType
 import com.example.model.JarvisLogEntry
 import com.example.model.PermissionActionType
 import com.example.system.SystemControlManager
+import com.example.voice.JarvisHotwordService
 import com.example.voice.JarvisVoiceController
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -43,6 +46,7 @@ data class JarvisUiState(
     val hapticsEnabled: Boolean = true,
     val isSpeechAvailable: Boolean = true,
     val isDefaultAssistant: Boolean = false,
+    val isHotwordActive: Boolean = JarvisHotwordService.isRunning,
     val activeErrorMessage: String? = null,
     val showPermissionsDialog: Boolean = false
 )
@@ -362,6 +366,22 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application) 
                 coreState = JarvisCoreState.ERROR,
                 activeErrorMessage = "Permiso de micrófono denegado. Actívalo para dictar instrucciones por voz."
             )
+        }
+    }
+
+    fun toggleHotwordService() {
+        val app = getApplication<Application>()
+        val intent = Intent(app, JarvisHotwordService::class.java)
+        if (JarvisHotwordService.isRunning) {
+            app.stopService(intent)
+            _uiState.update { it.copy(isHotwordActive = false) }
+        } else {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                app.startForegroundService(intent)
+            } else {
+                app.startService(intent)
+            }
+            _uiState.update { it.copy(isHotwordActive = true) }
         }
     }
 

@@ -9,9 +9,9 @@ import java.util.Date
 import java.util.Locale
 
 /**
- * Fast, on-device parser for explicit Android system and assistant commands.
- * Executes device controls, messaging intents, web navigation, and media keys immediately,
- * while open-ended natural language queries go through Firebase AI Logic.
+ * Fast, robust on-device parser for explicit Android system and assistant commands.
+ * Accurately extracts phone numbers, contacts, messaging bodies, web/YouTube searches,
+ * and camera/photo capture intents.
  */
 object LocalSystemCommandParser {
 
@@ -22,10 +22,20 @@ object LocalSystemCommandParser {
         // 1. WhatsApp / Telegram / SMS messaging
         parseMessagingCommand(rawText, normalized)?.let { return it }
 
-        // 2. Web search / URLs / YouTube
+        // 2. Camera & Photo Capture
+        if (containsAny(normalized, "toma una foto", "toma foto", "saca una foto", "haz una foto", "captura la foto", "abre la camara", "abre camara", "camara")) {
+            return JarvisAiDecision(
+                intent = JarvisIntentType.OPEN_APP_ACTION,
+                spokenResponse = "Abriendo cámara para capturar la foto.",
+                actionSummary = "CÁMARA // FOTO",
+                appAction = "camera"
+            )
+        }
+
+        // 3. Web search / URLs / YouTube
         parseWebCommand(rawText, normalized)?.let { return it }
 
-        // 3. Maps & Navigation
+        // 4. Maps & Navigation
         if (containsAny(normalized, "como llegar a ", "llevame a ", "ruta a ", "navega a ", "navegar a ")) {
             val dest = extractAfterKeywords(rawText, listOf("como llegar a ", "llevame a ", "ruta a ", "navega a ", "navegar a "))
             if (dest.isNotBlank()) {
@@ -38,22 +48,23 @@ object LocalSystemCommandParser {
             }
         }
 
-        // 4. Phone Calls
-        if (normalized.startsWith("llama a ") || normalized.startsWith("llamar a ") ||
-            normalized.startsWith("marca a ") || normalized.startsWith("marcar a ")
-        ) {
-            val target = extractAfterKeywords(rawText, listOf("llama a ", "llamar a ", "marca a ", "marcar a "))
+        // 5. Phone Calls ("llama a X", "marca a X", "llamar a X")
+        if (containsAny(normalized, "llama a ", "llamar a ", "marca a ", "marcar a ", "comunicame con ", "hablar con ")) {
+            val target = extractAfterKeywords(
+                rawText,
+                listOf("llama a ", "llamar a ", "marca a ", "marcar a ", "comunicame con ", "hablar con ")
+            )
             if (target.isNotBlank()) {
                 return JarvisAiDecision(
                     intent = JarvisIntentType.MAKE_CALL,
-                    spokenResponse = "Preparando llamada a $target.",
-                    actionSummary = "LLAMADA",
+                    spokenResponse = "Marcando a $target.",
+                    actionSummary = "LLAMADA // ${target.take(12).uppercase()}",
                     recipient = target
                 )
             }
         }
 
-        // 5. Media playback controls
+        // 6. Media playback controls
         if (containsAny(normalized, "pausa la musica", "pausar musica", "deten la musica", "pausa el audio")) {
             return JarvisAiDecision(
                 intent = JarvisIntentType.MEDIA_CONTROL,
@@ -87,7 +98,7 @@ object LocalSystemCommandParser {
             )
         }
 
-        // 6. Flashlight / Torch
+        // 7. Flashlight / Torch
         if (containsAny(normalized, "linterna", "flash", "antorcha", "luz trasera")) {
             val turnOff = containsAny(normalized, "apaga", "apagar", "desactiva", "desactivar", "off", "quita")
             val turnOn = containsAny(normalized, "enciende", "encender", "prende", "prender", "activa", "activar", "on", "pon")
@@ -104,7 +115,7 @@ object LocalSystemCommandParser {
             )
         }
 
-        // 7. Jarvis TTS Voice Mute / Unmute
+        // 8. Jarvis TTS Voice Mute / Unmute
         if (containsAny(normalized, "silencia tu voz", "callate", "no hables", "silenciar jarvis", "desactiva tu voz")) {
             return JarvisAiDecision(
                 intent = JarvisIntentType.SET_TTS_VOICE,
@@ -122,7 +133,7 @@ object LocalSystemCommandParser {
             )
         }
 
-        // 8. Volume Control
+        // 9. Volume Control
         if (containsAny(normalized, "volumen", "sonido", "audio")) {
             val stream = when {
                 containsAny(normalized, "timbre", "llamada") -> "ring"
@@ -171,7 +182,7 @@ object LocalSystemCommandParser {
             }
         }
 
-        // 9. Ringer Mode
+        // 10. Ringer Mode
         if (containsAny(normalized, "modo vibracion", "en vibracion", "pon vibrar", "vibracion")) {
             return JarvisAiDecision(
                 intent = JarvisIntentType.SET_RINGER_MODE,
@@ -197,7 +208,7 @@ object LocalSystemCommandParser {
             )
         }
 
-        // 10. Screen Brightness
+        // 11. Screen Brightness
         if (containsAny(normalized, "brillo", "iluminacion de pantalla")) {
             val pct = extractPercentage(normalized)
             return when {
@@ -241,7 +252,7 @@ object LocalSystemCommandParser {
             }
         }
 
-        // 11. Timer
+        // 12. Timer
         if (containsAny(normalized, "temporizador", "timer", "cuenta regresiva")) {
             val number = extractFirstInt(normalized)
             if (number != null && number > 0) {
@@ -265,7 +276,7 @@ object LocalSystemCommandParser {
             }
         }
 
-        // 12. Alarm
+        // 13. Alarm
         if (containsAny(normalized, "alarma", "despiertame", "despertador")) {
             val timeMatch = Regex("""\b(\d{1,2})(?::(\d{2}))?\b""").find(normalized)
             if (timeMatch != null) {
@@ -286,7 +297,7 @@ object LocalSystemCommandParser {
             }
         }
 
-        // 13. System Panels & App Launchers
+        // 14. System Panels & App Launchers
         if (containsAny(normalized, "abre ", "abrir ", "muestra ", "ir a ", "panel ")) {
             return when {
                 containsAny(normalized, "wifi", "wi-fi", "red") -> JarvisAiDecision(
@@ -342,7 +353,7 @@ object LocalSystemCommandParser {
             }
         }
 
-        // 14. Device Status / Diagnostics / Battery / Storage / RAM / Time
+        // 15. Device Status / Diagnostics
         if (containsAny(normalized, "diagnostico", "estado del sistema", "estado del dispositivo", "telemetria")) {
             val charge = if (telemetry.isCharging) "cargando" else "en uso"
             return JarvisAiDecision(
@@ -388,6 +399,16 @@ object LocalSystemCommandParser {
             )
         }
 
+        if (containsAny(normalized, "clima", "tiempo", "pronostico", "temperatura", "va a llover", "mañana")) {
+            val city = extractAfterKeywords(rawText, listOf("clima en ", "tiempo en ", "pronostico en ", "temperatura en ", "clima para ", "tiempo para ", "clima de "))
+            return JarvisAiDecision(
+                intent = JarvisIntentType.WEATHER_REPORT,
+                spokenResponse = "Permítame consultar el reporte meteorológico, señor.",
+                actionSummary = "CLIMA // ${if (city.isNotBlank()) city.uppercase() else "HOY"}",
+                query = if (city.isNotBlank()) city else "Madrid"
+            )
+        }
+
         return null
     }
 
@@ -405,9 +426,10 @@ object LocalSystemCommandParser {
         )
         if (!isSendIntent) return null
 
-        // Try extracting "\b(a|para) <recipient> (por whatsapp/telegram)? diciendo/que/con el texto <message>"
+        // Improved recipient and message body extraction for WhatsApp/Telegram/SMS
+        // Examples: "envía un WhatsApp a Carlos diciendo hola" or "manda mensaje a María que nos vemos"
         val regex = Regex(
-            """\b(?:a|para)\s+(.+?)\s+(?:(?:por|en)\s+(?:whatsapp|whasaap|wasap|telegram|sms)\s+)?(?:diciendo|que diga|con el texto|con el mensaje|el mensaje|:)\s+(.+)""",
+            """\b(?:a|para)\s+(.+?)\s+(?:(?:por|en)\s+(?:whatsapp|whasaap|wasap|telegram|sms)\s+)?(?:diciendo|que diga|que sea|con el texto|con el mensaje|el mensaje|dice|dicen|que|:)\s+(.+)""",
             RegexOption.IGNORE_CASE
         )
         val normMatch = regex.find(normalized)
@@ -424,7 +446,7 @@ object LocalSystemCommandParser {
 
             return JarvisAiDecision(
                 intent = JarvisIntentType.SEND_MESSAGE,
-                spokenResponse = "Preparando mensaje por $platform para $safeRec.",
+                spokenResponse = "Enviando mensaje por $platform a $safeRec.",
                 actionSummary = "${platform.uppercase()} → ${safeRec.take(12).uppercase()}",
                 platform = platform,
                 recipient = safeRec,
@@ -432,10 +454,10 @@ object LocalSystemCommandParser {
             )
         }
 
-        // Fallback: "envía un whatsapp diciendo <msg>" or "envía mensaje por telegram: <msg>"
+        // Fallback: extract recipient after "a" or "para" and message after saying keywords
         val msgAfterSaying = extractAfterKeywords(
             rawText,
-            listOf("diciendo ", "que diga ", "con el mensaje ", ": ")
+            listOf("diciendo ", "que diga ", "que sea ", "con el mensaje ", ": ")
         )
         val recipientOnly = extractAfterKeywords(rawText, listOf(" para ", " a "))
             .takeIf { it.isNotBlank() && msgAfterSaying.isBlank() }
@@ -451,7 +473,6 @@ object LocalSystemCommandParser {
     }
 
     private fun parseWebCommand(rawText: String, normalized: String): JarvisAiDecision? {
-        // Explicit URL
         val urlMatch = Regex("""\b((?:https?://)?[a-z0-9\-]+\.[a-z]{2,}(?:/\S*)?)\b""", RegexOption.IGNORE_CASE)
             .find(rawText)
         if (urlMatch != null && containsAny(normalized, "abre", "abrir", "entra", "ve a", "navega", "visita")) {
@@ -464,7 +485,6 @@ object LocalSystemCommandParser {
             )
         }
 
-        // YouTube search
         if (containsAny(normalized, "en youtube", "youtube ")) {
             val query = extractAfterKeywords(rawText, listOf("busca en youtube ", "pon en youtube ", "reproduce en youtube ", "youtube "))
             if (query.isNotBlank()) {
@@ -478,7 +498,6 @@ object LocalSystemCommandParser {
             }
         }
 
-        // General web search
         if (containsAny(normalized, "busca en internet ", "busca en google ", "investiga sobre ", "buscar en internet ", "navega por internet ")) {
             val query = extractAfterKeywords(
                 rawText,
@@ -500,7 +519,6 @@ object LocalSystemCommandParser {
         val normalized = normalize(rawText)
         if (normalized.isBlank()) return null
 
-        // Date / Day of week
         if (containsAny(normalized, "que dia es", "fecha de hoy", "que fecha es", "en que dia estamos")) {
             val dateStr = SimpleDateFormat("EEEE d 'de' MMMM 'de' yyyy", Locale("es", "ES")).format(Date())
             return JarvisAiDecision(
@@ -510,7 +528,6 @@ object LocalSystemCommandParser {
             )
         }
 
-        // Greetings
         if (containsAny(normalized, "hola", "buenos dias", "buenas tardes", "buenas noches", "hey jarvis", "despierta")) {
             return JarvisAiDecision(
                 intent = JarvisIntentType.CONVERSATION,
@@ -519,7 +536,6 @@ object LocalSystemCommandParser {
             )
         }
 
-        // Gratitude
         if (containsAny(normalized, "gracias", "muy bien", "perfecto", "excelente")) {
             return JarvisAiDecision(
                 intent = JarvisIntentType.CONVERSATION,
@@ -528,7 +544,6 @@ object LocalSystemCommandParser {
             )
         }
 
-        // Capabilities / Help
         if (containsAny(normalized, "que puedes hacer", "quien eres", "ayuda", "funciones", "comandos")) {
             return JarvisAiDecision(
                 intent = JarvisIntentType.CONVERSATION,
@@ -537,7 +552,6 @@ object LocalSystemCommandParser {
             )
         }
 
-        // Basic offline arithmetic (e.g., "cuanto es 15 por 4", "25 + 17", "100 entre 4")
         val mathResult = evaluateSimpleMath(normalized)
         if (mathResult != null) {
             return JarvisAiDecision(
@@ -547,7 +561,6 @@ object LocalSystemCommandParser {
             )
         }
 
-        // Offline device overview if asking a general status question
         if (containsAny(normalized, "como estas", "estado", "reporte")) {
             return JarvisAiDecision(
                 intent = JarvisIntentType.QUERY_DEVICE_STATUS,

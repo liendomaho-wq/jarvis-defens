@@ -67,8 +67,18 @@ class JarvisVoiceController(
             if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
                 textToSpeech?.setLanguage(Locale.getDefault())
             }
-            textToSpeech?.setSpeechRate(0.98f)
-            textToSpeech?.setPitch(0.78f)
+            textToSpeech?.setSpeechRate(0.90f)
+            textToSpeech?.setPitch(0.70f)
+            try {
+                val voices = textToSpeech?.voices
+                val spanishVoice = voices?.firstOrNull { it.locale.language == "es" && (it.name.contains("male", true) || it.name.contains("premium", true) || it.name.contains("neural", true)) }
+                    ?: voices?.firstOrNull { it.locale.language == "es" }
+                if (spanishVoice != null) {
+                    textToSpeech?.voice = spanishVoice
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Could not set butler voice", e)
+            }
             textToSpeech?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
                 override fun onStart(utteranceId: String?) {
                     _isSpeaking.value = true
@@ -125,7 +135,6 @@ class JarvisVoiceController(
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
             putExtra(RecognizerIntent.EXTRA_LANGUAGE, languageTag)
-            putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
             putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
         }
@@ -175,13 +184,15 @@ class JarvisVoiceController(
     private fun ensureRecognizer(): Boolean {
         if (speechRecognizer != null) return true
         return try {
-            val recognizer = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-                SpeechRecognizer.isOnDeviceRecognitionAvailable(context)
-            ) {
-                SpeechRecognizer.createOnDeviceSpeechRecognizer(context)
-            } else {
-                SpeechRecognizer.createSpeechRecognizer(context)
-            }
+            val recognizer = runCatching {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                    SpeechRecognizer.isOnDeviceRecognitionAvailable(context)
+                ) {
+                    SpeechRecognizer.createOnDeviceSpeechRecognizer(context)
+                } else {
+                    null
+                }
+            }.getOrNull() ?: SpeechRecognizer.createSpeechRecognizer(context)
             recognizer.setRecognitionListener(object : RecognitionListener {
                 override fun onReadyForSpeech(params: Bundle?) {
                     _isListening.value = true
