@@ -66,13 +66,20 @@ class JarvisLocalBrain(context: Context) {
             val subDecisions = clauses.map { clause ->
                 interpretSingleClause(clause, telemetry)
             }
-            val actionable = subDecisions.filter { it.intent != JarvisIntentType.CONVERSATION }
-            if (actionable.size >= 2) {
+            // Mantener los pasos desconocidos para informar al usuario en vez de descartarlos.
+            val steps = subDecisions.toMutableList()
+            // "abre la cámara y toma una foto" es una sola operación de captura.
+            var i = 0
+            while (i + 1 < steps.size) {
+                if (steps[i].appAction == "camera" && steps[i + 1].appAction == "take_photo") steps.removeAt(i)
+                else i++
+            }
+            if (steps.any { it.intent != JarvisIntentType.CONVERSATION }) {
                 return JarvisAiDecision(
-                    intent = actionable.first().intent,
-                    spokenResponse = "Ejecutando ${actionable.size} acciones en secuencia, señor.",
-                    actionSummary = "CADENA (${actionable.size} PASOS)",
-                    steps = actionable
+                    intent = steps.first().intent,
+                    spokenResponse = "Procesando ${steps.size} instrucciones en orden.",
+                    actionSummary = "CADENA (${steps.size} PASOS)",
+                    steps = steps
                 )
             }
         }

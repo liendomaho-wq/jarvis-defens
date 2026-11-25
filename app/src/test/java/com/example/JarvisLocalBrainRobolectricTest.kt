@@ -53,6 +53,19 @@ class JarvisLocalBrainRobolectricTest {
     }
 
     @Test
+    fun `plans four actions in order and collapses camera open and capture`() {
+        val plan = brain.interpretCommand("Enciende la linterna, pon el volumen al 70%, baja el brillo al 35% y toma una foto", baseTelemetry)
+        assertEquals(4, plan.steps.size)
+        assertEquals(JarvisIntentType.TOGGLE_FLASHLIGHT, plan.steps[0].intent)
+        assertEquals(JarvisIntentType.SET_VOLUME, plan.steps[1].intent)
+        assertEquals(JarvisIntentType.SET_BRIGHTNESS, plan.steps[2].intent)
+        assertEquals("take_photo", plan.steps[3].appAction)
+        val camera = brain.interpretCommand("Abre la cámara y toma una foto", baseTelemetry)
+        assertEquals(1, camera.steps.size)
+        assertEquals("take_photo", camera.steps[0].appAction)
+    }
+
+    @Test
     fun `creates and runs custom routines and sensor automations`() {
         val createRoutine = brain.interpretCommand(
             "Crea una rutina llamada estudio que apague la linterna y baje el brillo al 35%",

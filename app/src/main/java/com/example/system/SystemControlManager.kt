@@ -28,6 +28,7 @@ import android.provider.Settings
 import android.util.Log
 import android.view.KeyEvent
 import android.view.Window
+import com.example.camera.JarvisCameraActivity
 import com.example.model.CommandExecutionResult
 import com.example.model.DeviceTelemetry
 import com.example.model.JarvisAiDecision
@@ -192,18 +193,33 @@ class SystemControlManager(private val context: Context) {
 
     suspend fun executeDecisionPlan(
         decision: JarvisAiDecision,
-        window: Window?
+        window: Window?,
+        allowPhoto: Boolean = true
     ): CommandExecutionResult {
         if (decision.steps.isNotEmpty()) {
             val badges = mutableListOf<String>()
             val details = mutableListOf<String>()
-            var anySuccess = false
+            var allSucceeded = true
             var firstPermissionAction: PermissionActionType? = null
+            var externalOpened = false
 
             for (step in decision.steps) {
-                val res = executeSingleDecision(step, window)
-                if (res.success) anySuccess = true
+                val opensExternalScreen = step.intent in setOf(
+                    JarvisIntentType.OPEN_APP_ACTION, JarvisIntentType.OPEN_APP_BY_NAME,
+                    JarvisIntentType.OPEN_SYSTEM_PANEL, JarvisIntentType.OPEN_ASSISTANT_SETTINGS,
+                    JarvisIntentType.SEND_MESSAGE, JarvisIntentType.MAKE_CALL, JarvisIntentType.SEND_EMAIL,
+                    JarvisIntentType.WEB_BROWSE, JarvisIntentType.NAVIGATE_MAPS,
+                    JarvisIntentType.SET_ALARM, JarvisIntentType.SET_TIMER
+                )
+                val res = if (opensExternalScreen && externalOpened) {
+                    CommandExecutionResult(false, "PANTALLA PENDIENTE", "Otra aplicación ya se abrió. Solicita este paso por separado al volver a Jarvis.")
+                } else if (step.intent == JarvisIntentType.CONVERSATION) {
+                    CommandExecutionResult(false, "PASO NO RECONOCIDO", "No entendí este paso: ${step.spokenResponse}")
+                } else executeSingleDecision(step, window, allowPhoto)
+                if (res.success && opensExternalScreen) externalOpened = true
+                if (!res.success) allSucceeded = false
                 badges += res.actionBadge
+                details += "${step.actionSummary}: ${if (res.success) "iniciado/realizado" else "no realizado"}"
                 if (!res.detailText.isNullOrBlank()) {
                     details += res.detailText
                 }
@@ -213,7 +229,7 @@ class SystemControlManager(private val context: Context) {
             }
 
             return CommandExecutionResult(
-                success = anySuccess,
+                success = allSucceeded,
                 actionBadge = decision.actionSummary.ifBlank { badges.joinToString(" • ").take(32) },
                 detailText = details.distinct().joinToString(" | ").ifBlank {
                     badges.joinToString(" → ")
@@ -221,7 +237,7 @@ class SystemControlManager(private val context: Context) {
                 permissionActionType = firstPermissionAction
             )
         }
-        return executeSingleDecision(decision, window)
+        return executeSingleDecision(decision, window, allowPhoto)
     }
 
     suspend fun executeAiDecision(
@@ -231,7 +247,8 @@ class SystemControlManager(private val context: Context) {
 
     private suspend fun executeSingleDecision(
         decision: JarvisAiDecision,
-        window: Window?
+        window: Window?,
+        allowPhoto: Boolean
     ): CommandExecutionResult {
         return when (decision.intent) {
             JarvisIntentType.TOGGLE_FLASHLIGHT -> {
@@ -273,7 +290,9 @@ class SystemControlManager(private val context: Context) {
                 openSystemPanel(decision.panel ?: "settings")
             }
             JarvisIntentType.OPEN_APP_ACTION -> {
-                openAppAction(decision.appAction ?: "settings", decision.query.orEmpty())
+                if (decision.appAction == "take_photo" && !allowPhoto) {
+                    CommandExecutionResult(false, "FOTO BLOQUEADA", "Por privacidad, solicita la foto directamente con Jarvis abierto.")
+                } else openAppAction(decision.appAction ?: "settings", decision.query.orEmpty())
             }
             JarvisIntentType.QUERY_DEVICE_STATUS -> {
                 val t = getTelemetry()
@@ -948,6 +967,11 @@ class SystemControlManager(private val context: Context) {
 
     fun openAppAction(appAction: String, query: String): CommandExecutionResult {
         return when (appAction.lowercase()) {
+            "take_photo" -> {
+                val intent = Intent(context, JarvisCameraActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                val result = launchIntent(intent, "CÁMARA // CAPTURA", "CÁMARA NO DISPONIBLE")
+                if (result.success) result.copy(detailText = "Cámara iniciada; la captura y el guardado se confirmarán en la pantalla de cámara.") else result
+            }
             "camera", "camara", "cámara" -> {
                 val intent = Intent(MediaStore.INTENT_ACTION_STILL_IMAGE_CAMERA).apply {
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)

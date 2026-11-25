@@ -26,3 +26,18 @@ El APK se genera en `app/build/outputs/apk/debug/`. Para publicación se requier
 ## APK con GitHub Actions
 
 El flujo **Android APK** se ejecuta en pushes, solicitudes de cambios y manualmente. Ejecuta las pruebas y compila un APK firmado con una clave de depuración temporal, disponible como artefacto `jarvis-debug-apk` en la ejecución exitosa de Actions. Esa clave cambia en cada ejecución: puede ser necesario desinstalar el APK anterior antes de instalar otro. No es un APK de producción.
+
+## Ollama y conversación en línea
+
+1. Instala y ejecuta Ollama en un ordenador o servidor de confianza e instala un modelo, por ejemplo `ollama pull llama3.2`. La aplicación **no incluye un servidor ni un modelo Ollama**.
+2. El servidor debe ser accesible desde el teléfono. En la misma red, configura Ollama para escuchar en la interfaz adecuada (por ejemplo, mediante `OLLAMA_HOST=0.0.0.0:11434`) y limita el acceso con el firewall. No expongas el puerto sin protección a Internet: Ollama no proporciona autenticación por defecto. Para acceso remoto, usa un túnel privado (por ejemplo VPN) o un proxy HTTPS protegido a nivel de red. Esta aplicación no incluye soporte para claves/tokens ni autenticación HTTP.
+3. En Jarvis, pulsa **CONECTAR OLLAMA** e introduce la URL completa del servidor y el nombre exacto del modelo; acepta el envío de preguntas. Por ejemplo, `http://192.168.1.10:11434` solo es un ejemplo: utiliza la IP real de tu equipo. `localhost` en Android se refiere al teléfono, no a tu ordenador.
+4. Las preguntas que el intérprete clasifica como conversación se envían al servidor; los comandos del dispositivo siguen ejecutándose mediante el intérprete local. Si falla la conexión, Jarvis informa del error y usa una respuesta local. La respuesta del modelo nunca se ejecuta como comando. Ollama no tiene acceso automático a Internet ni a información actualizada; las búsquedas web existentes abren el navegador.
+
+La app permite HTTP para servidores en la red local, pero las conversaciones viajan **sin cifrar**. Usa solo redes de confianza y, de ser posible, HTTPS. No introduzcas contraseñas ni claves en la URL. La dirección y el modelo se guardan en preferencias de la app, que pueden incluirse en copias de seguridad del dispositivo.
+
+## Cámara y secuencias
+
+«Abre la cámara» abre la aplicación de cámara; «toma una foto» abre una cámara propia visible, solicita permiso y guarda una captura en la galería. En Android 8 y anteriores se solicita también permiso de almacenamiento. Si se deniega el permiso o la cámara está ocupada, no se toma la foto. No se permiten capturas mediante reglas o tareas programadas. La confirmación final aparece en la pantalla de cámara, no al iniciar la orden.
+
+Se pueden encadenar comandos, por ejemplo: «enciende la linterna, pon el volumen al 70%, baja el brillo al 35% y toma una foto». Jarvis informa los resultados de cada paso. Si una secuencia requiere abrir varias aplicaciones/pantallas, solo se inicia la primera y se informa que las demás deben solicitarse por separado. Algunas acciones necesitan permisos especiales o interacción adicional del usuario; Android no permite acceso total al dispositivo.

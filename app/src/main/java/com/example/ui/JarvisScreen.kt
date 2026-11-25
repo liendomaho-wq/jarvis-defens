@@ -7,6 +7,8 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -69,6 +71,7 @@ import com.example.R
 import com.example.assistant.DefaultAssistantHelper
 import com.example.model.JarvisCoreState
 import com.example.model.PermissionActionType
+import com.example.online.OllamaClient
 import com.example.ui.components.ArcReactorCore
 import com.example.ui.components.HudBracketPanel
 import com.example.ui.components.JarvisHudBackdrop
@@ -94,7 +97,9 @@ fun JarvisScreen(
     val window = (view.context as? Activity)?.window
 
     var showManualInputDialog by rememberSaveable { mutableStateOf(false) }
+    var showOllamaDialog by rememberSaveable { mutableStateOf(false) }
     var manualText by rememberSaveable { mutableStateOf("") }
+    var pendingHotwordMic by rememberSaveable { mutableStateOf(false) }
 
     var hasMicPermission by remember {
         mutableStateOf(
@@ -110,8 +115,10 @@ fun JarvisScreen(
     ) { granted ->
         hasMicPermission = granted
         if (granted) {
-            viewModel.toggleVoiceListening(window)
+            if (pendingHotwordMic) viewModel.toggleHotwordService() else viewModel.toggleVoiceListening(window)
+            pendingHotwordMic = false
         } else {
+            pendingHotwordMic = false
             viewModel.reportMicPermissionDenied()
         }
     }
@@ -178,7 +185,10 @@ fun JarvisScreen(
                     ttsEnabled = uiState.ttsEnabled,
                     isHotwordActive = uiState.isHotwordActive,
                     onToggleTts = viewModel::toggleTts,
-                    onToggleHotword = viewModel::toggleHotwordService,
+                    onToggleHotword = {
+                        if (hasMicPermission || uiState.isHotwordActive) viewModel.toggleHotwordService()
+                        else { pendingHotwordMic = true; micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO) }
+                    },
                     onOpenPermissions = { viewModel.setPermissionsDialogVisible(true) },
                     modifier = Modifier.align(Alignment.TopCenter)
                 )
@@ -371,6 +381,9 @@ fun JarvisScreen(
                         }
                     }
 
+                    TextButton(onClick = { showOllamaDialog = true }, modifier = Modifier.testTag("ollama_settings_button")) {
+                        Text(if (uiState.ollamaEndpoint.isBlank()) "CONECTAR OLLAMA" else "OLLAMA // CONFIGURAR", color = JarvisCyan, style = MaterialTheme.typography.labelSmall)
+                    }
                     Box(modifier = Modifier.fillMaxWidth()) {
                         Text(
                             text = when (uiState.coreState) {
@@ -401,6 +414,15 @@ fun JarvisScreen(
                 }
             }
         }
+    }
+
+    if (showOllamaDialog) {
+        OllamaSettingsDialog(
+            endpoint = uiState.ollamaEndpoint,
+            model = uiState.ollamaModel,
+            onSave = { endpoint, model -> viewModel.saveOllamaSettings(endpoint, model); showOllamaDialog = false },
+            onDismiss = { showOllamaDialog = false }
+        )
     }
 
     if (showManualInputDialog) {
@@ -490,4 +512,35 @@ fun JarvisScreen(
             onDismiss = { viewModel.setPermissionsDialogVisible(false) }
         )
     }
+}
+
+
+@Composable
+private fun OllamaSettingsDialog(endpoint: String, model: String, onSave: (String, String) -> Unit, onDismiss: () -> Unit) {
+    var address by rememberSaveable { mutableStateOf(endpoint) }
+    var modelName by rememberSaveable { mutableStateOf(model) }
+    var confirmed by rememberSaveable { mutableStateOf(false) }
+    val disconnected = address.isBlank() && modelName.isBlank()
+    val valid = disconnected || (OllamaClient.validEndpoint(address) && modelName.isNotBlank() && confirmed)
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = JarvisSurface,
+        title = { Text("Conectar Ollama", color = JarvisCyanGlow) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.verticalScroll(rememberScrollState())) {
+                Text("Configura un servidor Ollama accesible desde este teléfono. Las preguntas conversacionales se enviarán a ese servidor. Ollama no navega Internet automáticamente.", style = MaterialTheme.typography.bodySmall)
+                OutlinedTextField(value = address, onValueChange = { address = it; confirmed = false }, label = { Text("URL del servidor") }, placeholder = { Text("http://IP_DEL_SERVIDOR:11434") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = modelName, onValueChange = { modelName = it }, label = { Text("Modelo instalado") }, placeholder = { Text("llama3.2") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                Text("HTTP no cifra tus preguntas. Úsalo solo en una red de confianza; para acceso remoto usa HTTPS protegido. No incluyas claves en la URL. Deja ambos campos vacíos para desconectar.", style = MaterialTheme.typography.bodySmall, color = JarvisAmber)
+                if (!disconnected) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        androidx.compose.material3.Checkbox(checked = confirmed, onCheckedChange = { confirmed = it })
+                        Text("Acepto enviar mis preguntas a este servidor", style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = { onSave(address.trim(), modelName.trim()) }, enabled = valid) { Text("GUARDAR") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("CANCELAR") } }
+    )
 }
