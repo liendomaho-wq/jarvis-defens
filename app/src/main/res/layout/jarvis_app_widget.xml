@@ -6,36 +6,65 @@
     android:background="@drawable/widget_background"
     android:gravity="center"
     android:orientation="vertical"
-    android:padding="10px">
+    android:padding="8dp">
 
     <TextView
         android:id="@+id/widget_title"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="J.A.R.V.I.S."
+        android:text="J.A.R.V.I.S. HUD"
         android:textColor="#00F0FF"
-        android:textSize="14sp"
+        android:textSize="12sp"
         android:textStyle="bold"
-        android:letterSpacing="0.2" />
+        android:letterSpacing="0.15" />
 
-    <FrameLayout
-        android:id="@+id/widget_core_btn"
-        android:layout_width="72dp"
-        android:layout_height="72dp"
-        android:layout_marginTop="8dp"
-        android:background="@drawable/widget_core_background"
-        android:clickable="true"
-        android:focusable="true">
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:gravity="center"
+        android:orientation="horizontal">
 
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="center"
-            android:text="ARC"
-            android:textColor="#FFB020"
-            android:textSize="12sp"
+        <!-- Button 1: Voice -->
+        <Button
+            android:id="@+id/widget_btn_voice"
+            android:layout_width="0dp"
+            android:layout_height="36dp"
+            android:layout_weight="1"
+            android:layout_marginEnd="3dp"
+            android:background="@drawable/widget_core_background"
+            android:text="VOZ"
+            android:textColor="#00F0FF"
+            android:textSize="10sp"
             android:textStyle="bold" />
-    </FrameLayout>
+
+        <!-- Button 2: Flashlight -->
+        <Button
+            android:id="@+id/widget_btn_torch"
+            android:layout_width="0dp"
+            android:layout_height="36dp"
+            android:layout_weight="1"
+            android:layout_marginHorizontal="3dp"
+            android:background="@drawable/widget_core_background"
+            android:text="FLASH"
+            android:textColor="#FFB020"
+            android:textSize="10sp"
+            android:textStyle="bold" />
+
+        <!-- Button 3: Night Mode -->
+        <Button
+            android:id="@+id/widget_btn_night"
+            android:layout_width="0dp"
+            android:layout_height="36dp"
+            android:layout_weight="1"
+            android:layout_marginStart="3dp"
+            android:background="@drawable/widget_core_background"
+            android:text="NOCHE"
+            android:textColor="#00E066"
+            android:textSize="10sp"
+            android:textStyle="bold" />
+
+    </LinearLayout>
 
     <TextView
         android:id="@+id/widget_status_text"
@@ -44,6 +73,6 @@
         android:layout_marginTop="6dp"
         android:text="SISTEMA ACTIVO"
         android:textColor="#88A0C0"
-        android:textSize="10sp" />
+        android:textSize="9sp" />
 
 </LinearLayout>
