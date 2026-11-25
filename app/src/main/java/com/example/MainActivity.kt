@@ -11,23 +11,29 @@ import androidx.compose.runtime.setValue
 import com.example.assistant.JarvisVoiceInteractionSession
 import com.example.ui.JarvisScreen
 import com.example.ui.theme.JarvisTheme
+import com.example.voice.JarvisHotwordService
 
 class MainActivity : ComponentActivity() {
 
     private var assistTriggerCounter by mutableIntStateOf(0)
+    private var hotwordTriggerCounter by mutableIntStateOf(0)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        if (isAssistIntent(intent)) {
+        if (isHotwordIntent(intent)) {
+            hotwordTriggerCounter++
+        } else if (isAssistIntent(intent)) {
             assistTriggerCounter++
         }
 
-        // STEP 2: Enable edge-to-edge display and render Jarvis HUD
         enableEdgeToEdge()
         setContent {
             JarvisTheme {
-                JarvisScreen(assistTriggerCount = assistTriggerCounter)
+                JarvisScreen(
+                    assistTriggerCount = assistTriggerCounter,
+                    hotwordTriggerCount = hotwordTriggerCounter
+                )
             }
         }
     }
@@ -35,9 +41,17 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        if (isAssistIntent(intent)) {
+        if (isHotwordIntent(intent)) {
+            hotwordTriggerCounter++
+        } else if (isAssistIntent(intent)) {
             assistTriggerCounter++
         }
+    }
+
+    private fun isHotwordIntent(intent: Intent?): Boolean {
+        if (intent == null) return false
+        return intent.action == JarvisHotwordService.ACTION_HOTWORD_DETECTED ||
+            intent.getBooleanExtra("HOTWORD_TRIGGER", false)
     }
 
     private fun isAssistIntent(intent: Intent?): Boolean {

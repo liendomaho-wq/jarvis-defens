@@ -18,6 +18,9 @@ object JarvisTrainingCorpus {
         "apaga la luz del flash" to JarvisIntentType.TOGGLE_FLASHLIGHT,
         "ilumina con la antorcha" to JarvisIntentType.TOGGLE_FLASHLIGHT,
         "corta la linterna por favor" to JarvisIntentType.TOGGLE_FLASHLIGHT,
+        "esta muy oscuro en el cuarto dame luz" to JarvisIntentType.TOGGLE_FLASHLIGHT,
+        "dame luz con la linterna" to JarvisIntentType.TOGGLE_FLASHLIGHT,
+        "activa la linterna" to JarvisIntentType.TOGGLE_FLASHLIGHT,
 
         // SET_VOLUME
         "sube el volumen" to JarvisIntentType.SET_VOLUME,
@@ -28,6 +31,8 @@ object JarvisTrainingCorpus {
         "silencia el audio multimedia" to JarvisIntentType.SET_VOLUME,
         "volumen al maximo" to JarvisIntentType.SET_VOLUME,
         "deja el volumen de timbre al 40%" to JarvisIntentType.SET_VOLUME,
+        "subele mas al sonido multimedia" to JarvisIntentType.SET_VOLUME,
+        "sube el sonido multimedia" to JarvisIntentType.SET_VOLUME,
 
         // SET_RINGER_MODE
         "pon el telefono en silencio" to JarvisIntentType.SET_RINGER_MODE,
@@ -77,6 +82,7 @@ object JarvisTrainingCorpus {
         "cual es el estado del sistema" to JarvisIntentType.QUERY_DEVICE_STATUS,
         "haz un diagnostico completo del telefono" to JarvisIntentType.QUERY_DEVICE_STATUS,
         "cuanta bateria me queda" to JarvisIntentType.QUERY_DEVICE_STATUS,
+        "cuanta bateria queda disponible" to JarvisIntentType.QUERY_DEVICE_STATUS,
         "cuanto almacenamiento libre tengo" to JarvisIntentType.QUERY_DEVICE_STATUS,
         "cuanta memoria ram hay disponible" to JarvisIntentType.QUERY_DEVICE_STATUS,
         "como esta mi conexion a internet" to JarvisIntentType.QUERY_DEVICE_STATUS,
@@ -193,6 +199,14 @@ object JarvisTrainingCorpus {
         // OPEN_ASSISTANT_SETTINGS
         "ponte como asistente predeterminado" to JarvisIntentType.OPEN_ASSISTANT_SETTINGS,
         "configura a jarvis como asistente por defecto" to JarvisIntentType.OPEN_ASSISTANT_SETTINGS,
+
+        // WEATHER_REPORT
+        "como esta el clima hoy" to JarvisIntentType.WEATHER_REPORT,
+        "dime el tiempo en madrid" to JarvisIntentType.WEATHER_REPORT,
+        "cual es el pronostico del tiempo" to JarvisIntentType.WEATHER_REPORT,
+        "va a llover manana" to JarvisIntentType.WEATHER_REPORT,
+        "que temperatura hace hoy" to JarvisIntentType.WEATHER_REPORT,
+        "reporte meteorologico" to JarvisIntentType.WEATHER_REPORT,
 
         // CONVERSATION
         "hola jarvis buenos dias" to JarvisIntentType.CONVERSATION,

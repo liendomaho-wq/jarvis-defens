@@ -37,7 +37,7 @@ class JarvisLocalBrain(context: Context) {
         }
     }
 
-    fun interpretCommand(rawText: String, telemetry: DeviceTelemetry): JarvisAiDecision {
+    suspend fun interpretCommand(rawText: String, telemetry: DeviceTelemetry): JarvisAiDecision {
         ensureInitialized()
         val trimmed = rawText.trim()
         if (trimmed.isBlank()) {
@@ -63,8 +63,9 @@ class JarvisLocalBrain(context: Context) {
         // 3. Compound multi-clause decomposition (e.g. "Enciende la linterna y pon el brillo al 80%")
         val clauses = splitCompoundClauses(trimmed, norm)
         if (clauses.size > 1) {
-            val subDecisions = clauses.map { clause ->
-                interpretSingleClause(clause, telemetry)
+            val subDecisions = mutableListOf<JarvisAiDecision>()
+            for (clause in clauses) {
+                subDecisions.add(interpretSingleClause(clause, telemetry))
             }
             val actionable = subDecisions.filter { it.intent != JarvisIntentType.CONVERSATION }
             if (actionable.size >= 2) {
@@ -81,15 +82,17 @@ class JarvisLocalBrain(context: Context) {
         return interpretSingleClause(trimmed, telemetry)
     }
 
-    fun expandActionChain(actions: List<String>, telemetry: DeviceTelemetry): List<JarvisAiDecision> {
+    suspend fun expandActionChain(actions: List<String>, telemetry: DeviceTelemetry): List<JarvisAiDecision> {
         ensureInitialized()
-        return actions.flatMap { act ->
+        val list = mutableListOf<JarvisAiDecision>()
+        for (act in actions) {
             val d = interpretCommand(act, telemetry)
-            if (d.steps.isNotEmpty()) d.steps else listOf(d)
+            if (d.steps.isNotEmpty()) list.addAll(d.steps) else list.add(d)
         }
+        return list
     }
 
-    private fun interpretSingleClause(clause: String, telemetry: DeviceTelemetry): JarvisAiDecision {
+    private suspend fun interpretSingleClause(clause: String, telemetry: DeviceTelemetry): JarvisAiDecision {
         val norm = TextVectorizer.normalize(clause)
 
         // Check routine match directly inside a clause too
@@ -116,11 +119,11 @@ class JarvisLocalBrain(context: Context) {
             buildDecisionFromNeuralPrediction(prediction, clause, norm, telemetry)?.let { return it }
         }
 
-        // Offline knowledge, math, conversions, diagnostics, or conversational reasoning
-        return LocalKnowledgeAndReasoning.answerLocally(clause, telemetry)
+        // Factual knowledge, online lookup, math, conversions, diagnostics, or conversational reasoning
+        return LocalKnowledgeAndReasoning.answerQuery(clause, telemetry)
     }
 
-    private fun parseMetaAutonomousCommand(
+    private suspend fun parseMetaAutonomousCommand(
         rawText: String,
         norm: String,
         telemetry: DeviceTelemetry

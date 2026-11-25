@@ -262,7 +262,9 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application) 
             prefsRepository.setTtsEnabled(ttsStep.enabled ?: true)
         }
 
-        val execResult = systemManager.executeDecisionPlan(decision, window)
+        val execResult = withContext(Dispatchers.IO) {
+            systemManager.executeDecisionPlan(decision, window)
+        }
         val updatedTelemetry = systemManager.getTelemetry()
 
         val combinedResponse = buildString {
@@ -288,8 +290,20 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application) 
 
         val ttsAllowed = _uiState.value.ttsEnabled &&
             allSteps.none { it.intent == JarvisIntentType.SET_TTS_VOICE && it.enabled == false }
+
+        val speechText = if (!execResult.detailText.isNullOrBlank() &&
+            (decision.intent == JarvisIntentType.WEATHER_REPORT ||
+             decision.intent == JarvisIntentType.QUERY_DEVICE_STATUS ||
+             decision.intent == JarvisIntentType.READ_NOTES ||
+             decision.intent == JarvisIntentType.LIST_AUTOMATIONS)
+        ) {
+            execResult.detailText
+        } else {
+            decision.spokenResponse
+        }
+
         val startedSpeaking = if (ttsAllowed) {
-            voiceController.speak(decision.spokenResponse)
+            voiceController.speak(speechText)
         } else {
             false
         }
@@ -300,6 +314,24 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application) 
                 coreState = if (startedSpeaking) JarvisCoreState.SPEAKING else JarvisCoreState.IDLE,
                 logEntries = listOf(entry) + state.logEntries
             )
+        }
+    }
+
+    fun handleHotwordDetected() {
+        voiceController.stopSpeaking()
+        val greeting = "A sus órdenes, señor. Estoy despierto y escuchándole."
+        _uiState.update {
+            it.copy(
+                coreState = JarvisCoreState.SPEAKING,
+                activeErrorMessage = null
+            )
+        }
+        if (_uiState.value.ttsEnabled) {
+            voiceController.speak(greeting)
+        }
+        viewModelScope.launch {
+            delay(2000L)
+            voiceController.startListening()
         }
     }
 

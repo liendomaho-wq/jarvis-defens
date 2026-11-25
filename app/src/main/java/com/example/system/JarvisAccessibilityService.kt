@@ -2,6 +2,8 @@ package com.example.system
 
 import android.accessibilityservice.AccessibilityService
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import android.util.Log
@@ -14,6 +16,8 @@ class JarvisAccessibilityService : AccessibilityService() {
         var isServiceEnabled: Boolean = false
             private set
     }
+
+    private val mainHandler = Handler(Looper.getMainLooper())
 
     override fun onServiceConnected() {
         super.onServiceConnected()
@@ -69,6 +73,69 @@ class JarvisAccessibilityService : AccessibilityService() {
     }
 
     /**
+     * Automatically schedules a delayed attempt to click the send button in WhatsApp, Telegram, etc.
+     */
+    fun scheduleAutoClickSend(delays: LongArray = longArrayOf(600L, 1200L, 2200L)) {
+        for (delay in delays) {
+            mainHandler.postDelayed({
+                tryClickSendButton()
+            }, delay)
+        }
+    }
+
+    private fun tryClickSendButton(): Boolean {
+        val rootNode = rootInActiveWindow ?: return false
+        val sendButton = findNodeByCondition(rootNode) { node ->
+            val desc = node.contentDescription?.toString()?.lowercase() ?: ""
+            val text = node.text?.toString()?.lowercase() ?: ""
+            val id = node.viewIdResourceName?.lowercase() ?: ""
+            desc.contains("send") || desc.contains("enviar") ||
+            text.contains("send") || text.contains("enviar") ||
+            id.contains("send") || id.contains("button_send")
+        }
+        val clicked = if (sendButton != null) {
+            val res = sendButton.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+            sendButton.recycle()
+            res
+        } else false
+
+        rootNode.recycle()
+        return clicked
+    }
+
+    /**
+     * Automatically schedules a delayed attempt to click the shutter button in Camera apps.
+     */
+    fun scheduleAutoClickCameraShutter(delays: LongArray = longArrayOf(1200L, 2000L)) {
+        for (delay in delays) {
+            mainHandler.postDelayed({
+                tryClickShutterButton()
+            }, delay)
+        }
+    }
+
+    private fun tryClickShutterButton(): Boolean {
+        val rootNode = rootInActiveWindow ?: return false
+        val shutterButton = findNodeByCondition(rootNode) { node ->
+            val desc = node.contentDescription?.toString()?.lowercase() ?: ""
+            val text = node.text?.toString()?.lowercase() ?: ""
+            val id = node.viewIdResourceName?.lowercase() ?: ""
+            desc.contains("shutter") || desc.contains("disparador") ||
+            desc.contains("take picture") || desc.contains("tomar foto") ||
+            desc.contains("capturar") || desc.contains("captura") ||
+            id.contains("shutter") || id.contains("capture")
+        }
+        val clicked = if (shutterButton != null) {
+            val res = shutterButton.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+            shutterButton.recycle()
+            res
+        } else false
+
+        rootNode.recycle()
+        return clicked
+    }
+
+    /**
      * Automatically types and sends a message in WhatsApp or Telegram if currently open on chat view.
      */
     fun autoSendSocialMessage(contactName: String, messageText: String): Boolean {
@@ -90,20 +157,11 @@ class JarvisAccessibilityService : AccessibilityService() {
             inputNode.recycle()
 
             if (success) {
-                // Now find the Send button
-                val sendButton = findNodeByCondition(rootNode) { node ->
-                    val desc = node.contentDescription?.toString()?.lowercase() ?: ""
-                    val text = node.text?.toString()?.lowercase() ?: ""
-                    val id = node.viewIdResourceName?.lowercase() ?: ""
-                    desc.contains("send") || desc.contains("enviar") ||
-                    text.contains("send") || text.contains("enviar") ||
-                    id.contains("send") || id.contains("button_send")
-                }
-                if (sendButton != null) {
-                    sendButton.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-                    sendButton.recycle()
-                }
+                scheduleAutoClickSend()
             }
+        } else {
+            // Even if input node not found right away, schedule send click in case text was preloaded by intent
+            scheduleAutoClickSend()
         }
 
         rootNode.recycle()
@@ -130,14 +188,14 @@ class JarvisAccessibilityService : AccessibilityService() {
      */
     fun executeSystemAction(action: String): Boolean {
         return when (action.lowercase()) {
-            "back", "atras" -> performGlobalAction(GLOBAL_ACTION_BACK)
-            "home", "inicio" -> performGlobalAction(GLOBAL_ACTION_HOME)
-            "recents", "recientes" -> performGlobalAction(GLOBAL_ACTION_RECENTS)
-            "notifications", "notificaciones" -> performGlobalAction(GLOBAL_ACTION_NOTIFICATIONS)
+            "back", "atras", "system_back" -> performGlobalAction(GLOBAL_ACTION_BACK)
+            "home", "inicio", "system_home" -> performGlobalAction(GLOBAL_ACTION_HOME)
+            "recents", "recientes", "system_recents" -> performGlobalAction(GLOBAL_ACTION_RECENTS)
+            "notifications", "notificaciones", "system_notifications" -> performGlobalAction(GLOBAL_ACTION_NOTIFICATIONS)
             "quick_settings", "ajustes_rapidos" -> performGlobalAction(GLOBAL_ACTION_QUICK_SETTINGS)
-            "lock", "bloquear" -> performGlobalAction(GLOBAL_ACTION_LOCK_SCREEN)
+            "lock", "bloquear", "system_lock" -> performGlobalAction(GLOBAL_ACTION_LOCK_SCREEN)
             "power", "apagado" -> performGlobalAction(GLOBAL_ACTION_POWER_DIALOG)
-            "screenshot", "captura" -> performGlobalAction(GLOBAL_ACTION_TAKE_SCREENSHOT)
+            "screenshot", "captura", "system_screenshot" -> performGlobalAction(GLOBAL_ACTION_TAKE_SCREENSHOT)
             else -> false
         }
     }

@@ -5,6 +5,7 @@ import androidx.test.core.app.ApplicationProvider
 import com.example.ai.JarvisLocalBrain
 import com.example.model.DeviceTelemetry
 import com.example.model.JarvisIntentType
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -40,7 +41,7 @@ class JarvisLocalBrainRobolectricTest {
     }
 
     @Test
-    fun `executes compound multi-step commands autonomously`() {
+    fun `executes compound multi-step commands autonomously`() = runBlocking {
         val decision = brain.interpretCommand(
             "Enciende la linterna y pon el volumen al 70%",
             baseTelemetry
@@ -53,7 +54,7 @@ class JarvisLocalBrainRobolectricTest {
     }
 
     @Test
-    fun `creates and runs custom routines and sensor automations`() {
+    fun `creates and runs custom routines and sensor automations`() = runBlocking {
         val createRoutine = brain.interpretCommand(
             "Crea una rutina llamada estudio que apague la linterna y baje el brillo al 35%",
             baseTelemetry
@@ -80,7 +81,7 @@ class JarvisLocalBrainRobolectricTest {
     }
 
     @Test
-    fun `learns custom commands, schedules tasks, saves notes, and solves math locally`() {
+    fun `learns custom commands, schedules tasks, saves notes, and solves math locally`() = runBlocking {
         val teach = brain.interpretCommand(
             "Cuando diga modo sigilo pon el telefono en vibracion",
             baseTelemetry

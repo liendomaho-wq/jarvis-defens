@@ -23,19 +23,77 @@ object LocalSystemCommandParser {
         parseMessagingCommand(rawText, normalized)?.let { return it }
 
         // 2. Camera & Photo Capture
-        if (containsAny(normalized, "toma una foto", "toma foto", "saca una foto", "haz una foto", "captura la foto", "abre la camara", "abre camara", "camara")) {
+        if (containsAny(normalized, "toma una foto", "toma foto", "saca una foto", "haz una foto", "captura la foto", "dispara la foto", "tomar foto", "sacar foto")) {
             return JarvisAiDecision(
                 intent = JarvisIntentType.OPEN_APP_ACTION,
-                spokenResponse = "Abriendo cámara para capturar la foto.",
-                actionSummary = "CÁMARA // FOTO",
+                spokenResponse = "Abriendo cámara para capturar la fotografía, señor.",
+                actionSummary = "CÁMARA // CAPTURA",
+                appAction = "camera_capture"
+            )
+        }
+        if (containsAny(normalized, "abre la camara", "abre camara", "visor de camara", "camara")) {
+            return JarvisAiDecision(
+                intent = JarvisIntentType.OPEN_APP_ACTION,
+                spokenResponse = "Abriendo cámara.",
+                actionSummary = "CÁMARA // VISOR",
                 appAction = "camera"
             )
         }
 
-        // 3. Web search / URLs / YouTube
+        // 3. System Accessibility Global Gestures
+        if (containsAny(normalized, "pantalla de inicio", "ve a inicio", "ir a inicio", "ir a home", "pantalla principal")) {
+            return JarvisAiDecision(
+                intent = JarvisIntentType.OPEN_APP_ACTION,
+                spokenResponse = "Yendo a la pantalla de inicio, señor.",
+                actionSummary = "SISTEMA // INICIO",
+                appAction = "system_home"
+            )
+        }
+        if (containsAny(normalized, "ve atras", "volver atras", "retrocede", "atras")) {
+            return JarvisAiDecision(
+                intent = JarvisIntentType.OPEN_APP_ACTION,
+                spokenResponse = "Volviendo atrás.",
+                actionSummary = "SISTEMA // ATRÁS",
+                appAction = "system_back"
+            )
+        }
+        if (containsAny(normalized, "abre notificaciones", "muestra notificaciones", "baja las notificaciones", "panel de notificaciones")) {
+            return JarvisAiDecision(
+                intent = JarvisIntentType.OPEN_APP_ACTION,
+                spokenResponse = "Desplegando barra de notificaciones.",
+                actionSummary = "SISTEMA // NOTIF",
+                appAction = "system_notifications"
+            )
+        }
+        if (containsAny(normalized, "aplicaciones recientes", "apps recientes", "multitarea", "ver recientes")) {
+            return JarvisAiDecision(
+                intent = JarvisIntentType.OPEN_APP_ACTION,
+                spokenResponse = "Mostrando aplicaciones recientes.",
+                actionSummary = "SISTEMA // RECIENTES",
+                appAction = "system_recents"
+            )
+        }
+        if (containsAny(normalized, "captura de pantalla", "toma un screenshot", "capturar pantalla", "haz un screenshot")) {
+            return JarvisAiDecision(
+                intent = JarvisIntentType.OPEN_APP_ACTION,
+                spokenResponse = "Tomando captura de pantalla, señor.",
+                actionSummary = "CAPTURA PANTALLA",
+                appAction = "system_screenshot"
+            )
+        }
+        if (containsAny(normalized, "bloquea la pantalla", "bloquear pantalla", "bloquear telefono")) {
+            return JarvisAiDecision(
+                intent = JarvisIntentType.OPEN_APP_ACTION,
+                spokenResponse = "Bloqueando pantalla.",
+                actionSummary = "SISTEMA // BLOQUEO",
+                appAction = "system_lock"
+            )
+        }
+
+        // 4. Web search / URLs / YouTube
         parseWebCommand(rawText, normalized)?.let { return it }
 
-        // 4. Maps & Navigation
+        // 5. Maps & Navigation
         if (containsAny(normalized, "como llegar a ", "llevame a ", "ruta a ", "navega a ", "navegar a ")) {
             val dest = extractAfterKeywords(rawText, listOf("como llegar a ", "llevame a ", "ruta a ", "navega a ", "navegar a "))
             if (dest.isNotBlank()) {
@@ -48,16 +106,19 @@ object LocalSystemCommandParser {
             }
         }
 
-        // 5. Phone Calls ("llama a X", "marca a X", "llamar a X")
-        if (containsAny(normalized, "llama a ", "llamar a ", "marca a ", "marcar a ", "comunicame con ", "hablar con ")) {
-            val target = extractAfterKeywords(
-                rawText,
-                listOf("llama a ", "llamar a ", "marca a ", "marcar a ", "comunicame con ", "hablar con ")
-            )
+        // 6. Phone Calls
+        val callKeywords = listOf(
+            "haz una llamada a ", "haz una llamada al ", "haz llamada a ", "haz llamada al ",
+            "llamale a ", "marcale a ", "llama a ", "llamar a ", "llama al ", "llamar al ",
+            "marca a ", "marcar a ", "marca al ", "marcar al ", "comunicame con ", "hablar con "
+        )
+        if (containsAny(normalized, *callKeywords.toTypedArray())) {
+            var target = extractAfterKeywords(rawText, callKeywords)
+            target = target.replace(Regex("""^(?:a|al|a mi|mi)\s+""", RegexOption.IGNORE_CASE), "").trim()
             if (target.isNotBlank()) {
                 return JarvisAiDecision(
                     intent = JarvisIntentType.MAKE_CALL,
-                    spokenResponse = "Marcando a $target.",
+                    spokenResponse = "Marcando a $target, señor.",
                     actionSummary = "LLAMADA // ${target.take(12).uppercase()}",
                     recipient = target
                 )
@@ -399,13 +460,25 @@ object LocalSystemCommandParser {
             )
         }
 
-        if (containsAny(normalized, "clima", "tiempo", "pronostico", "temperatura", "va a llover", "mañana")) {
-            val city = extractAfterKeywords(rawText, listOf("clima en ", "tiempo en ", "pronostico en ", "temperatura en ", "clima para ", "tiempo para ", "clima de "))
+        if (containsAny(normalized, "clima", "pronostico", "temperatura", "va a llover", "llovera", "tiempo meteorologico", "reporte del clima", "estado del tiempo")) {
+            val isTomorrow = containsAny(normalized, "mañana", "dia siguiente")
+            var city = extractAfterKeywords(rawText, listOf("clima en ", "tiempo en ", "pronostico en ", "temperatura en ", "clima de ", "reporte de "))
+            if (city.isBlank() || city.equals("mañana", ignoreCase = true) || city.equals("hoy", ignoreCase = true)) {
+                val candidate = extractAfterKeywords(rawText, listOf("clima para ", "tiempo para ", "pronostico para "))
+                city = if (candidate.isNotBlank() && !candidate.equals("mañana", ignoreCase = true) && !candidate.equals("hoy", ignoreCase = true)) {
+                    candidate
+                } else {
+                    "Madrid"
+                }
+            }
+            val timeLabel = if (isTomorrow) "MAÑANA" else "HOY"
+            val targetCity = city.replace(Regex("""\b(mañana|hoy|por favor)\b""", RegexOption.IGNORE_CASE), "").trim().ifBlank { "Madrid" }
             return JarvisAiDecision(
                 intent = JarvisIntentType.WEATHER_REPORT,
-                spokenResponse = "Permítame consultar el reporte meteorológico, señor.",
-                actionSummary = "CLIMA // ${if (city.isNotBlank()) city.uppercase() else "HOY"}",
-                query = if (city.isNotBlank()) city else "Madrid"
+                spokenResponse = if (isTomorrow) "Consultando el pronóstico para mañana en $targetCity, señor." else "Consultando el reporte meteorológico para $targetCity, señor.",
+                actionSummary = "CLIMA // $timeLabel",
+                query = targetCity,
+                isTomorrow = isTomorrow
             )
         }
 

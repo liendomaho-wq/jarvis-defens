@@ -188,7 +188,7 @@ class SystemControlManager(private val context: Context) {
         )
     }
 
-    fun executeDecisionPlan(
+    suspend fun executeDecisionPlan(
         decision: JarvisAiDecision,
         window: Window?
     ): CommandExecutionResult {
@@ -222,12 +222,12 @@ class SystemControlManager(private val context: Context) {
         return executeSingleDecision(decision, window)
     }
 
-    fun executeAiDecision(
+    suspend fun executeAiDecision(
         decision: JarvisAiDecision,
         window: Window?
     ): CommandExecutionResult = executeDecisionPlan(decision, window)
 
-    private fun executeSingleDecision(
+    private suspend fun executeSingleDecision(
         decision: JarvisAiDecision,
         window: Window?
     ): CommandExecutionResult {
@@ -327,8 +327,9 @@ class SystemControlManager(private val context: Context) {
             }
             JarvisIntentType.WEATHER_REPORT -> {
                 val city = decision.query?.ifBlank { "Madrid" } ?: "Madrid"
-                val forecast = WeatherRepository.fetchWeather(city)
-                val responseText = "A su entera disposición, señor. En ${forecast.city} se espera ${forecast.condition.lowercase()}, con una temperatura máxima de ${forecast.tempMax.toInt()} grados y mínima de ${forecast.tempMin.toInt()} grados."
+                val forecast = WeatherRepository.fetchWeather(city, decision.isTomorrow)
+                val dayDesc = if (decision.isTomorrow) "mañana" else "hoy"
+                val responseText = "A su entera disposición, señor. Para $dayDesc en ${forecast.city} se pronostica ${forecast.condition.lowercase()}, con una temperatura máxima de ${forecast.tempMax.toInt()} grados y mínima de ${forecast.tempMin.toInt()} grados."
                 CommandExecutionResult(
                     success = true,
                     actionBadge = "CLIMA // ${forecast.city.uppercase()}",
@@ -465,6 +466,7 @@ class SystemControlManager(private val context: Context) {
                         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                     }
                     val targetLabel = (contactMatch?.displayName ?: trimmedRecipient).uppercase()
+                    JarvisAccessibilityService.instance?.scheduleAutoClickSend()
                     return launchIntent(intent, "WHATSAPP → $targetLabel", "WHATSAPP NO INSTALADO")
                 }
 
@@ -475,6 +477,7 @@ class SystemControlManager(private val context: Context) {
                         setPackage(waPackage)
                         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                     }
+                    JarvisAccessibilityService.instance?.scheduleAutoClickSend()
                     val permHint = if (trimmedRecipient.isNotBlank() && !contactsHelper.hasContactsPermission()) {
                         PermissionActionType.READ_CONTACTS
                     } else null
@@ -952,6 +955,29 @@ class SystemControlManager(private val context: Context) {
 
     fun openAppAction(appAction: String, query: String): CommandExecutionResult {
         return when (appAction.lowercase()) {
+            "camera_capture" -> {
+                val intent = Intent(MediaStore.INTENT_ACTION_STILL_IMAGE_CAMERA).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                JarvisAccessibilityService.instance?.scheduleAutoClickCameraShutter()
+                launchIntent(intent, "FOTO CAPTURADA", "SIN APP CÁMARA")
+            }
+            "system_home", "system_back", "system_notifications", "system_recents", "system_screenshot", "system_lock" -> {
+                val acc = JarvisAccessibilityService.instance
+                if (acc != null && JarvisAccessibilityService.isServiceEnabled) {
+                    val ok = acc.executeSystemAction(appAction)
+                    CommandExecutionResult(
+                        success = ok,
+                        actionBadge = appAction.removePrefix("system_").uppercase()
+                    )
+                } else {
+                    CommandExecutionResult(
+                        success = false,
+                        actionBadge = "REQUIERE ACCESIBILIDAD",
+                        detailText = "Activa el Servicio de Accesibilidad de Jarvis en Ajustes del Sistema para permitir esta acción global."
+                    )
+                }
+            }
             "camera", "camara", "cámara" -> {
                 val intent = Intent(MediaStore.INTENT_ACTION_STILL_IMAGE_CAMERA).apply {
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)

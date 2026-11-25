@@ -173,6 +173,9 @@ class JarvisHotwordService : Service() {
         sendBroadcast(broadcastIntent)
 
         val mainActivityIntent = Intent(this, MainActivity::class.java).apply {
+            action = ACTION_HOTWORD_DETECTED
+            putExtra("HOTWORD_TRIGGER", true)
+            putExtra(EXTRA_HOTWORD_TEXT, matchedText)
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP)
         }
         startActivity(mainActivityIntent)

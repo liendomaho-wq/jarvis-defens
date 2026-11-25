@@ -97,6 +97,7 @@ data class JarvisAiDecision(
     val conditionSpec: String? = null,
     val scheduledActionText: String? = null,
     val neuralConfidence: Float = 1f,
+    val isTomorrow: Boolean = false,
     val steps: List<JarvisAiDecision> = emptyList()
 )
 

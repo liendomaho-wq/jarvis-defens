@@ -94,7 +94,7 @@ class LocalNeuralNetwork(
         val dataset = (JarvisTrainingCorpus.samples + extraSamples).map { (text, intent) ->
             TextVectorizer.vectorize(text) to intent.ordinal
         }
-        trainEpochs(dataset, epochs = 50, learningRate = 0.008f)
+        trainEpochs(dataset, epochs = 60, learningRate = 0.008f)
         lastTrainingAccuracy = evaluateAccuracy(dataset)
         if (weightsFile != null) {
             saveWeights(weightsFile)

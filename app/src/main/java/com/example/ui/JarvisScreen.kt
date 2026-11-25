@@ -86,6 +86,7 @@ import com.example.ui.theme.JarvisSurfaceBorder
 @Composable
 fun JarvisScreen(
     assistTriggerCount: Int = 0,
+    hotwordTriggerCount: Int = 0,
     viewModel: JarvisViewModel = viewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -131,6 +132,12 @@ fun JarvisScreen(
     LaunchedEffect(assistTriggerCount) {
         if (assistTriggerCount > 0) {
             viewModel.handleAssistTrigger(window)
+        }
+    }
+
+    LaunchedEffect(hotwordTriggerCount) {
+        if (hotwordTriggerCount > 0) {
+            viewModel.handleHotwordDetected()
         }
     }
 
