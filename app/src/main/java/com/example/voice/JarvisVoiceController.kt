@@ -67,8 +67,8 @@ class JarvisVoiceController(
             if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
                 textToSpeech?.setLanguage(Locale.getDefault())
             }
-            textToSpeech?.setSpeechRate(1.04f)
-            textToSpeech?.setPitch(0.95f)
+            textToSpeech?.setSpeechRate(0.98f)
+            textToSpeech?.setPitch(0.78f)
             textToSpeech?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
                 override fun onStart(utteranceId: String?) {
                     _isSpeaking.value = true

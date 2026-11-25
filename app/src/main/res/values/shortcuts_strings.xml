@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="shortcut_night_short">Modo Noche</string>
+    <string name="shortcut_night_long">Activar Rutina Modo Noche</string>
+    <string name="shortcut_flash_short">Linterna</string>
+    <string name="shortcut_flash_long">Controlar Linterna</string>
+</resources>
