@@ -1,0 +1,17 @@
+<resources>
+    <string name="app_name">Jarvis</string>
+    <string name="jarvis_brand_title">J.A.R.V.I.S.</string>
+    <string name="jarvis_subtitle">ASISTENTE NEURAL DE SISTEMA</string>
+    <string name="status_online">EN LÍNEA</string>
+    <string name="status_listening">ESCUCHANDO</string>
+    <string name="status_processing">PROCESANDO</string>
+    <string name="status_speaking">HABLANDO</string>
+    <string name="mic_permission_needed">Se requiere permiso de micrófono para dictar instrucciones a Jarvis.</string>
+    <string name="grant_permission">Activar micrófono</string>
+    <string name="command_input_hint">Escribe una instrucción para Jarvis…</string>
+    <string name="cd_voice_core">Núcleo de voz de Jarvis, toca para hablar o detener</string>
+    <string name="cd_send_command">Enviar comando</string>
+    <string name="cd_toggle_tts">Activar o silenciar voz de Jarvis</string>
+    <string name="cd_system_permissions">Ver permisos del dispositivo</string>
+    <string name="cd_keyboard_input">Escribir instrucción manualmente</string>
+</resources>
