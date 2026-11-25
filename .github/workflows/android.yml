@@ -41,11 +41,13 @@ jobs:
       - name: Ejecutar pruebas y compilar APK de depuración
         run: |
           set -o pipefail
-          gradle :app:testDebugUnitTest :app:assembleDebug --no-daemon 2>&1 | tee gradle.log || {
+          gradle :app:assembleDebug :app:testDebugUnitTest --no-daemon 2>&1 | tee gradle.log || {
             grep -E -A 8 'FAILURE:|^e: |^> Task .*FAILED|Execution failed for task' gradle.log | head -30 | while IFS= read -r line; do echo "::error::$line"; done
+            python3 -c 'import glob,xml.etree.ElementTree as ET; files=glob.glob("app/build/test-results/testDebugUnitTest/TEST-*.xml"); [print("::error::" + str(t.get("classname")) + "." + str(t.get("name")) + " " + str((t.find("failure").get("message") or "")[:500])) for f in files for t in ET.parse(f).iter("testcase") if t.find("failure") is not None]'
             exit 1
           }
       - name: Publicar APK
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: jarvis-debug-apk
